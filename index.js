@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.2.0 ───
+// ─── 🎤 Hot Mic v1.3.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -696,6 +696,45 @@ function syncControls() {
     });
 }
 
+// ─── 매직완드(확장) 메뉴 토글 — 모바일 접근성 ───
+function injectWandMenu() {
+    const menu = document.getElementById('extensionsMenu');
+    if (!menu || document.getElementById('hotmic-wand-item')) return;
+
+    const item = document.createElement('div');
+    item.id = 'hotmic-wand-item';
+    item.className = 'list-group-item flex-container flexGap5 interactable';
+    item.tabIndex = 0;
+    item.innerHTML = `
+        <div class="fa-solid fa-microphone extensionsMenuExtensionButton"></div>
+        <span id="hotmic-wand-label">🎤 Hot Mic</span>
+    `;
+    menu.appendChild(item);
+
+    const refreshLabel = () => {
+        const s = getSettings();
+        const lbl = document.getElementById('hotmic-wand-label');
+        if (lbl) lbl.textContent = s.enabled ? '🎤 Hot Mic: 켜짐' : '🎤 Hot Mic: 꺼짐';
+    };
+    refreshLabel();
+
+    item.addEventListener('click', () => {
+        const s = getSettings();
+        s.enabled = !s.enabled;
+        saveSettingsDebounced();
+        applyEnabledState();
+        refreshLabel();
+        syncControls();
+        // 켜면 자막바 상태로 끌어올림
+        if (s.enabled && s.state === 'icon') setState('ticker');
+        // 켜자마자 해설 한 번 시도
+        if (s.enabled) setTimeout(runGeneration, 100);
+        // 메뉴 닫기 (모바일)
+        document.getElementById('extensionsMenu')?.classList.remove('shown');
+        document.querySelector('#extensionsMenuButton')?.classList.remove('active');
+    });
+}
+
 // ─── 이벤트 리스너 ───
 function setupEventListeners() {
     // AI 응답 완료 시 자동 해설
@@ -708,7 +747,20 @@ function setupEventListeners() {
 jQuery(async () => {
     injectUI();
     injectSettings();
+    injectWandMenu();
     setupEventListeners();
     syncControls();
+    applyEnabledState();
+
+    // 와우메뉴/설정창이 늦게 그려지는 환경 대비 재시도
+    let tries = 0;
+    const retry = setInterval(() => {
+        injectWandMenu();
+        injectSettings();
+        if (document.getElementById('hotmic-wand-item') || ++tries > 10) {
+            clearInterval(retry);
+        }
+    }, 1000);
+
     console.log('[Hot Mic] 로드 완료. 캐릭터는 모릅니다.');
 });

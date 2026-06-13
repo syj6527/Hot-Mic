@@ -2,20 +2,37 @@
 
 #observer-bar {
     position: fixed;
-    bottom: 60px;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     left: 0;
     right: 0;
-    z-index: 9900;
+    z-index: 10050;
     pointer-events: none;
     display: flex;
     justify-content: center;
     padding: 0 12px;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: bottom 0.25s ease, padding 0.25s ease;
+}
+
+/* 모바일: 입력 폼이 더 높고 키보드 영향 있음 → 더 위로 */
+@media (max-width: 1000px) {
+    #observer-bar {
+        bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+        z-index: 10050;
+    }
+    #observer-bar.state-icon {
+        bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    }
+    #observer-panel {
+        max-height: 45vh;
+    }
+    #observer-ticker {
+        max-width: 100%;
+    }
 }
 
 /* ─── ICON ONLY ─── */
 #observer-bar.state-icon {
-    bottom: 64px;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
     justify-content: flex-end;
     padding-right: 16px;
 }
