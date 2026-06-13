@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.5.1 ───
+// ─── 🎤 Hot Mic v2.6.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -123,6 +123,7 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
         short:  '\n\n[분량] 아주 간결하게. 각 항목은 한 줄(최대 1문장). 펀치라인 위주로 짧고 강하게.',
         normal: '\n\n[분량] 보통. 각 항목 1~2문장.',
         long:   '\n\n[분량] 풍부하게. 각 항목 2~4문장까지 허용. 디테일과 부연을 살리되 데드팬 톤은 유지.',
+        max:    '\n\n[분량] 매우 길고 풍부하게. 각 항목을 충분히 길게(인터뷰는 여러 문답, 중계는 긴 실황). 다인원이면 인물별로 모두 다루세요. 단 데드팬/모드 톤은 끝까지 유지.',
     }[settings.length] || '';
 
     // 구성 프리셋: 어떤 블록을 채울지
@@ -213,7 +214,7 @@ ${chatHistory}
         : null;
 
     // 분량 → 응답 토큰 상한
-    const maxTokens = { short: 350, normal: 700, long: 1200 }[settings.length] || 700;
+    const maxTokens = { short: 400, normal: 900, long: 2000, max: 4000 }[settings.length] || 900;
 
     if (targetProfile && cmrs && typeof cmrs.sendRequest === 'function') {
         try {
@@ -514,6 +515,11 @@ function setState(newState) {
     getSettings().state = newState;
     saveSettingsDebounced();
     enforcePosition();
+    // 패널 펼침 직후 헤더 높이 확정되면 본문 스크롤 높이 재계산
+    if (newState === 'panel') {
+        requestAnimationFrame(enforcePosition);
+        setTimeout(enforcePosition, 100);
+    }
 }
 
 // ─── 해설 생성 실행 ───
@@ -667,10 +673,17 @@ function enforcePosition() {
         // 화면이 아니라 그 조상 기준이 되어 bottom 값이 엉뚱하게 적용된다(top이 음수로 튐).
         // 이를 우회하려고, 화면 좌표를 직접 계산해 top으로 박는다.
         const panel = document.getElementById('observer-panel');
-        if (panel) {
-            const topSafe = 12;
-            const maxH = Math.max(120, window.innerHeight - gap - topSafe - 8);
-            panel.style.setProperty('max-height', maxH + 'px', 'important');
+        const pbody = panel?.querySelector('.obs-panel-body');
+        if (panel && pbody) {
+            const topSafe = 16;
+            // 패널 전체가 화면을 넘지 않도록: 헤더 높이를 빼고 본문 max-height 계산
+            const header = panel.querySelector('.obs-panel-header');
+            const headerH = header ? header.offsetHeight : 44;
+            const avail = Math.max(80, window.innerHeight - gap - topSafe - headerH - 16);
+            pbody.style.setProperty('max-height', avail + 'px', 'important');
+            pbody.style.setProperty('overflow-y', 'auto', 'important');
+            pbody.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+            panel.style.setProperty('max-height', 'none', 'important');
         }
 
         bar.style.setProperty('position', 'fixed', 'important');
@@ -868,6 +881,7 @@ function buildSettingsModal() {
             <option value="short"  ${s.length === 'short'  ? 'selected' : ''}>간결 (짧고 강하게)</option>
             <option value="normal" ${s.length === 'normal' ? 'selected' : ''}>보통</option>
             <option value="long"   ${s.length === 'long'   ? 'selected' : ''}>수다 (풍부하게)</option>
+            <option value="max"    ${s.length === 'max'    ? 'selected' : ''}>초장문 (대용량)</option>
         </select>
 
         <label class="obs-set-label">구성</label>
