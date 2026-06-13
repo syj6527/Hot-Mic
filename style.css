@@ -101,6 +101,15 @@
     animation: obs-blink 1.4s ease-in-out infinite;
 }
 
+#observer-icon-btn .obs-icon-recdot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ff3c3c;
+    box-shadow: 0 0 8px rgba(255, 60, 60, 0.9);
+    animation: obs-blink 1.2s ease-in-out infinite;
+}
+
 @keyframes obs-blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.2; }
@@ -258,21 +267,23 @@
 
 /* mode/context selects */
 .obs-select {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: #1a1a1a !important;
+    border: 1px solid rgba(255,255,255,0.2);
     border-radius: 5px;
-    color: rgba(255,255,255,0.95);
+    color: #fff !important;
     font-size: 10px;
     padding: 3px 6px;
     cursor: pointer;
     outline: none;
     transition: border-color 0.15s;
     font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif;
+    -webkit-appearance: none;
+    appearance: none;
 }
 
 .obs-select:hover, .obs-select:focus {
-    border-color: rgba(255, 60, 60, 0.5);
-    color: #fff;
+    border-color: rgba(255, 60, 60, 0.6);
+    color: #fff !important;
 }
 
 .obs-select option {

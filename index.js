@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.7.0 ───
+// ─── 🎤 Hot Mic v1.8.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -379,8 +379,24 @@ function pickEmojis(mode, text) {
 function playFx(mode, text) {
     const bar = document.getElementById('observer-bar');
     if (!bar) return;
-    // bar는 overflow 제한이 없어 폭죽이 잘리지 않음
-    const host = bar;
+
+    // 현재 보이는 자막 요소(ticker 또는 panel)에 붙여서, 자막과 같은 위치에서 터지게 한다.
+    const ticker = document.getElementById('observer-ticker');
+    const panel = document.getElementById('observer-panel');
+    let host = bar;
+    if (panel && panel.offsetParent !== null && getComputedStyle(panel).display !== 'none') {
+        host = panel;
+    } else if (ticker && ticker.offsetParent !== null && getComputedStyle(ticker).display !== 'none') {
+        host = ticker;
+    }
+    // host가 position:static이면 absolute 기준이 안 되므로 relative 보장
+    if (getComputedStyle(host).position === 'static') {
+        host.style.position = 'relative';
+    }
+    // 패널은 overflow:hidden이라 위로 솟는 이모지가 잘림 → fx 동안만 잘림 허용
+    if (host === panel) {
+        host.style.overflow = 'visible';
+    }
 
     const set = FX_SETS[mode] || FX_SETS.variety;
     const pool = pickEmojis(mode, text);
@@ -408,8 +424,11 @@ let _lastTs = 0;
 
 function startAutoScroll() {
     stopAutoScroll();
+    if (!getSettings().autoscroll) return;
     const body = document.querySelector('.obs-panel-body');
     if (!body) return;
+    // 패널이 보이지 않으면(예: ticker 상태) clientHeight가 0 → 나중에 다시
+    if (body.clientHeight < 10) return;
     // 스크롤할 내용이 없으면 안 함
     if (body.scrollHeight <= body.clientHeight + 2) return;
 
@@ -475,6 +494,12 @@ function setState(newState) {
     getSettings().state = newState;
     saveSettingsDebounced();
     enforcePosition();
+    // 패널을 펼치면 자동스크롤 시작 (모바일에서 ticker→panel 전환 시 작동)
+    if (newState === 'panel' && getSettings().autoscroll) {
+        setTimeout(startAutoScroll, 350); // 펼침 애니메이션 후
+    } else {
+        stopAutoScroll();
+    }
 }
 
 // ─── 해설 생성 실행 ───
@@ -522,8 +547,7 @@ function injectUI() {
 
     <!-- 아이콘만 -->
     <button id="observer-icon-btn" title="Hot Mic 열기">
-        🎤
-        <span class="obs-rec-dot"></span>
+        <span class="obs-icon-recdot"></span>
     </button>
 
     <!-- 자막바 -->
@@ -719,33 +743,7 @@ function bindEvents() {
         });
     }
 
-    // 🥚 이스터에그: 패널 제목 "🎤 HOT MIC"를 1.5초 안에 5번 탭하면 디버그 모드 토글
-    const title = bar.querySelector('.obs-panel-title');
-    if (title) {
-        let taps = [];
-        title.style.cursor = 'pointer';
-        title.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const now = Date.now();
-            taps = taps.filter(t => now - t < 1500);
-            taps.push(now);
-            if (taps.length >= 5) {
-                taps = [];
-                const s = getSettings();
-                s.debug = !s.debug;
-                saveSettingsDebounced();
-                // 짧은 피드백
-                const old = title.textContent;
-                title.textContent = s.debug ? '🐞 DEBUG ON' : '🎤 HOT MIC';
-                if (s.debug) {
-                    hotmicDebug('🐞 디버그 모드 ON (새로고침 시 진단 표시)');
-                } else {
-                    document.getElementById('hotmic-debug')?.remove();
-                }
-                setTimeout(() => { title.textContent = '🎤 HOT MIC'; }, 1500);
-            }
-        });
-    }
+    // 🥚 이스터에그는 설정창 "출력 언어" 라벨로 이동 (injectSettings에서 바인딩)
 
     // 모드 변경
     bar.querySelector('.obs-mode-select')?.addEventListener('change', (e) => {
@@ -801,7 +799,7 @@ function injectSettings() {
             </select>
             <small class="notes">메인 RP와 다른 모델로 해설을 뽑고 싶을 때 선택. (예: RP는 GLM, 해설은 Claude)</small>
 
-            <label for="hotmic-language" style="margin-top:10px;">출력 언어</label>
+            <label for="hotmic-language" id="hotmic-lang-label" style="margin-top:10px;">출력 언어</label>
             <select id="hotmic-language" class="text_pole">
                 <option value="ko" ${settings.language === 'ko' ? 'selected' : ''}>한국어</option>
                 <option value="en" ${settings.language === 'en' ? 'selected' : ''}>English</option>
@@ -854,11 +852,27 @@ function injectSettings() {
     bind('hotmic-context-s', 'context');
     bind('hotmic-autoscroll', 'autoscroll');
 
-    // 자동스크롤 체크박스 → 즉시 반영
-    document.getElementById('hotmic-autoscroll')?.addEventListener('change', () => {
-        if (getSettings().autoscroll) startAutoScroll(); else stopAutoScroll();
-        syncControls();
-    });
+    // 🥚 이스터에그: "출력 언어" 라벨 1.5초 내 5번 탭 → 디버그 토글
+    const langLabel = document.getElementById('hotmic-lang-label');
+    if (langLabel) {
+        let taps = [];
+        langLabel.style.cursor = 'default';
+        langLabel.addEventListener('click', () => {
+            const now = Date.now();
+            taps = taps.filter(t => now - t < 1500);
+            taps.push(now);
+            if (taps.length >= 5) {
+                taps = [];
+                const s = getSettings();
+                s.debug = !s.debug;
+                saveSettingsDebounced();
+                const orig = langLabel.textContent;
+                langLabel.textContent = s.debug ? '🐞 디버그 ON (새로고침 시 적용)' : '출력 언어';
+                if (!s.debug) document.getElementById('hotmic-debug')?.remove();
+                setTimeout(() => { langLabel.textContent = '출력 언어'; }, 2000);
+            }
+        });
+    }
 
     // 스크롤 속도 슬라이더
     const speedInput = document.getElementById('hotmic-scrollspeed');
@@ -960,6 +974,30 @@ function setupEventListeners() {
     eventSource.on(event_types.MESSAGE_RECEIVED, () => {
         setTimeout(runGeneration, 300); // 렌더 안정화 후
     });
+
+    // 채팅을 바꾸면 이전 해설을 비우고, 새 채팅 기준으로 다시 생성한다.
+    // (CHAT_CHANGED는 캐릭터/채팅 전환, 새 채팅 시작 모두에서 발생)
+    if (event_types.CHAT_CHANGED) {
+        eventSource.on(event_types.CHAT_CHANGED, () => {
+            clearCommentary();
+            // 새 채팅에 이미 메시지가 있으면 잠시 후 해설 생성, 없으면 비운 채 대기
+            setTimeout(() => {
+                const ctx = getContext();
+                const chat = ctx.chat || [];
+                const hasAi = chat.some(m => !m.is_user);
+                if (hasAi && getSettings().enabled) runGeneration();
+            }, 500);
+        });
+    }
+}
+
+// 현재 해설을 비운다 (채팅 전환 시)
+function clearCommentary() {
+    currentCommentary = null;
+    stopAutoScroll();
+    const body = document.querySelector('.obs-panel-body');
+    if (body) body.innerHTML = '<div class="obs-empty">🎤 녹음 대기 중...</div>';
+    updateTickerPreview('녹음 대기 중...');
 }
 
 // ─── 화면 디버그 배너 (모바일은 콘솔을 못 보므로 화면에 직접 표시) ───
