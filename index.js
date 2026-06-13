@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.14.1 ───
+// ─── 🎤 Hot Mic v2.15.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -1177,17 +1177,28 @@ function applyTheme() {
     const a = Math.max(0.3, Math.min(1, (s.opacity || 92) / 100));
     const bar = document.getElementById('observer-bar');
     if (!bar) return;
-    const bgRgba = `rgba(${t.bg},${a})`;
+    // 배경은 불투명하게 두고, 요소 전체 opacity로 배경+글자 모두 함께 투명하게
+    const bgSolid = `rgb(${t.bg})`;
 
     bar.style.setProperty('--hm-accent', t.accent);
     bar.style.setProperty('--hm-text', t.text);
-    bar.style.setProperty('--hm-bg', bgRgba);
+    bar.style.setProperty('--hm-bg', bgSolid);
 
     const ticker = document.getElementById('observer-ticker');
     const panel = document.getElementById('observer-panel');
-    [ticker, panel].forEach(el => {
-        if (el) el.style.setProperty('background', bgRgba, 'important');
-    });
+    if (ticker) {
+        ticker.style.setProperty('background', bgSolid, 'important');
+        ticker.style.setProperty('opacity', a, 'important');
+    }
+    if (panel) {
+        // 패널 자체는 투명 + 불투명도1 (슬라이더가 안 흐려지게). 배경/투명도는 헤더·본문이 담당.
+        panel.style.setProperty('background', 'transparent', 'important');
+        panel.style.setProperty('opacity', '1', 'important');
+        panel.querySelectorAll('.obs-panel-header, .obs-panel-body').forEach(el => {
+            el.style.setProperty('background', bgSolid, 'important');
+            el.style.setProperty('opacity', a, 'important');
+        });
+    }
     // 텍스트색
     bar.querySelectorAll('.obs-ticker-preview, .obs-block-content').forEach(el => {
         el.style.setProperty('color', t.text, 'important');
