@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.6.4-debug ───
+// ─── 🎤 Hot Mic v1.6.5-debug ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -570,23 +570,39 @@ function enforcePosition() {
     // 2) 전체펼침이 아닐 때만 하단 고정을 강제 (전체펼침은 CSS가 처리)
     if (!bar.classList.contains('obs-fs-bar')) {
         const isMobile = window.matchMedia('(max-width: 1000px)').matches;
-        const bottomPx = isMobile ? 56 : 60;
-        bar.style.setProperty('position', 'fixed', 'important');
-        bar.style.setProperty('left', '0', 'important');
-        bar.style.setProperty('right', '0', 'important');
-        bar.style.setProperty('bottom', `calc(${bottomPx}px + env(safe-area-inset-bottom, 0px))`, 'important');
-        bar.style.setProperty('top', 'auto', 'important');
-        bar.style.setProperty('transform', 'none', 'important');
-        bar.style.setProperty('z-index', '100000', 'important');
+        const gap = isMobile ? 56 : 60;
 
-        // 패널이 열린 상태에서 키가 화면을 넘으면 위로 삐져나가므로,
-        // 패널 최대 높이를 "화면 높이 - 하단여백 - 위쪽안전여백"으로 제한한다.
+        // ST staging은 body/html에 transform을 걸기도 한다. 그러면 position:fixed가
+        // 화면이 아니라 그 조상 기준이 되어 bottom 값이 엉뚱하게 적용된다(top이 음수로 튐).
+        // 이를 우회하려고, 화면 좌표를 직접 계산해 top으로 박는다.
         const panel = document.getElementById('observer-panel');
         if (panel) {
             const topSafe = 12;
-            const maxH = Math.max(120, window.innerHeight - bottomPx - topSafe - 8);
+            const maxH = Math.max(120, window.innerHeight - gap - topSafe - 8);
             panel.style.setProperty('max-height', maxH + 'px', 'important');
         }
+
+        bar.style.setProperty('position', 'fixed', 'important');
+        bar.style.setProperty('left', '0', 'important');
+        bar.style.setProperty('right', '0', 'important');
+        bar.style.setProperty('transform', 'none', 'important');
+        bar.style.setProperty('z-index', '100000', 'important');
+
+        // transform 조상이 있는지 감지: bottom 적용 후 실제 위치가 화면 밖이면 top으로 직접 박기
+        bar.style.setProperty('bottom', `${gap}px`, 'important');
+        bar.style.setProperty('top', 'auto', 'important');
+
+        // 다음 프레임에 실제 렌더 위치를 재서, 화면 밖이면 top 좌표로 교정
+        requestAnimationFrame(() => {
+            const r = bar.getBoundingClientRect();
+            const h = r.height || 40;
+            const wanted = window.innerHeight - gap - h; // 화면 기준 원하는 top
+            // 실제 top이 원하는 값과 크게 다르면(=transform 조상 때문) top으로 강제
+            if (Math.abs(r.top - wanted) > 4 || r.top < 0 || r.top > window.innerHeight) {
+                bar.style.setProperty('bottom', 'auto', 'important');
+                bar.style.setProperty('top', `${Math.max(0, wanted)}px`, 'important');
+            }
+        });
     }
 }
 
@@ -960,7 +976,13 @@ jQuery(async () => {
             hotmicDebug(`bar: top=${Math.round(r.top)} left=${Math.round(r.left)} size=${Math.round(r.width)}x${Math.round(r.height)}`);
             hotmicDebug(`화면: winH=${window.innerHeight} winW=${window.innerWidth}`);
             if (r.top > window.innerHeight || r.top < -r.height) {
-                hotmicDebug('⚠ bar가 화면 밖에 있음 → CSS 위치 문제', true);
+                hotmicDebug('⚠ bar가 화면 밖 → top 교정 시도함', true);
+                // 교정 한 번 더 강제 호출
+                try { enforcePosition(); } catch (e) {}
+                setTimeout(() => {
+                    const r2 = document.getElementById('observer-bar')?.getBoundingClientRect();
+                    if (r2) hotmicDebug(`교정 후: top=${Math.round(r2.top)} (winH=${window.innerHeight})`);
+                }, 100);
             } else if (r.width === 0 || r.height === 0) {
                 hotmicDebug('⚠ bar 크기가 0 → 내용/display 문제', true);
             } else {
