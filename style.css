@@ -18,6 +18,7 @@
     #observer-bar {
         bottom: calc(54px + env(safe-area-inset-bottom, 0px));
         z-index: 10050;
+        position: fixed;
     }
     #observer-bar.state-icon {
         bottom: calc(58px + env(safe-area-inset-bottom, 0px));
@@ -27,6 +28,8 @@
     }
     #observer-ticker {
         max-width: 100%;
+        background: rgba(8, 8, 8, 0.96);
+        border-color: rgba(255, 60, 60, 0.45);
     }
 }
 
@@ -377,4 +380,52 @@
     font-family: 'Courier New', monospace;
     text-align: center;
     padding: 20px 0;
+}
+
+/* ─── 마스코트 애니메이션 ─── */
+.hotmic-fx {
+    position: absolute;
+    bottom: 30px;
+    pointer-events: none;
+    z-index: 50;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
+/* 예능: 폭죽처럼 위로 솟구치며 터짐 */
+@keyframes fx-pop {
+    0%   { transform: translateY(20px) scale(0.4); opacity: 0; }
+    25%  { transform: translateY(-40px) scale(1.2); opacity: 1; }
+    60%  { transform: translateY(-80px) scale(1); opacity: 1; }
+    100% { transform: translateY(-140px) scale(0.6) rotate(20deg); opacity: 0; }
+}
+.fx-pop { animation: fx-pop 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+/* 스포츠: 축구공이 가로질러 드리블(통통 튀며) */
+@keyframes fx-dribble {
+    0%   { left: -8%; bottom: 24px; transform: rotate(0deg); opacity: 0; }
+    10%  { opacity: 1; }
+    25%  { bottom: 60px; }
+    40%  { bottom: 24px; }
+    55%  { bottom: 50px; }
+    70%  { bottom: 24px; }
+    90%  { opacity: 1; }
+    100% { left: 104%; bottom: 30px; transform: rotate(1080deg); opacity: 0; }
+}
+.fx-dribble {
+    animation: fx-dribble 2s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+    bottom: 24px;
+}
+
+/* 다큐: 카메라가 천천히 떠올라 팬하며 사라짐 */
+@keyframes fx-pan {
+    0%   { transform: translateX(-12px) scale(0.8); opacity: 0; }
+    25%  { opacity: 0.9; }
+    50%  { transform: translateX(12px) scale(1); opacity: 0.9; }
+    100% { transform: translateX(36px) scale(0.9); opacity: 0; }
+}
+.fx-pan { animation: fx-pan 2.1s ease-in-out forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+    .hotmic-fx { animation: none !important; opacity: 0 !important; }
 }

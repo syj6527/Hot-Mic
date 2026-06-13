@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.3.0 ───
+// ─── 🎤 Hot Mic v1.4.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
     autoscroll: true,         // 자동 스크롤 on/off
     scrollSpeed: 40,          // px/sec
     fullscreen: false,        // 전체 펼침 상태
+    fxFrequency: 30,          // 마스코트 애니메이션 등장 확률 (%)
 };
 
 function getSettings() {
@@ -302,6 +303,65 @@ function renderCommentary(data) {
     // 새 해설 렌더되면 맨 위로 + 자동스크롤 재시작
     body.scrollTop = 0;
     if (getSettings().autoscroll) startAutoScroll();
+
+    // 모드별 마스코트 애니메이션 (확률 + 스마트 가중치)
+    maybePlayFx(data);
+}
+
+// ─── 마스코트 애니메이션 ───
+// 모드별 이모지가 패널에서 한 번 연출되고 사라진다.
+// 등장 확률 = 기본 fxFrequency% + 상황 키워드 가중치.
+function maybePlayFx(data) {
+    const s = getSettings();
+    const base = Math.max(0, Math.min(100, s.fxFrequency || 0));
+    if (base === 0) return;
+
+    const mode = s.mode;
+    const text = [data.inner, data.director, data.fact, data.interview, data.preview]
+        .filter(Boolean).join(' ');
+
+    // 스마트 가중치: 모드별 "터질 만한" 키워드 있으면 확률 부스트
+    const triggers = {
+        docu:    ['멸종', '희귀', '최초', '관찰 사상', '경이', '드뭅', '유일'],
+        sports:  ['골', '득점', '역전', '실패', '성공', '대기록', '승부', '결정', '!'],
+        variety: ['치트키', '결국', '하고 싶은 말', '들켰', '실패', '폭로', '???', 'ㅋㅋ'],
+    };
+    const hits = (triggers[mode] || []).filter(k => text.includes(k)).length;
+    const boosted = Math.min(100, base + hits * 18); // 키워드당 +18%
+
+    if (Math.random() * 100 >= boosted) return; // 확률 통과 못하면 끝
+
+    playFx(mode);
+}
+
+const FX_SETS = {
+    docu:    { emojis: ['📹', '🔬', '🦒', '🐾'], anim: 'fx-pan' },
+    sports:  { emojis: ['⚽', '🥅', '🏟️', '📣'], anim: 'fx-dribble' },
+    variety: { emojis: ['🎉', '✨', '🎊', '💥'], anim: 'fx-pop' },
+};
+
+function playFx(mode) {
+    const bar = document.getElementById('observer-bar');
+    if (!bar) return;
+    // bar는 overflow 제한이 없어 폭죽이 잘리지 않음
+    const host = bar;
+
+    const set = FX_SETS[mode] || FX_SETS.variety;
+
+    // 예능 폭죽은 여러 개 흩뿌림, 나머지는 1~2개
+    const count = mode === 'variety' ? 5 : (mode === 'sports' ? 1 : 2);
+
+    for (let i = 0; i < count; i++) {
+        const el = document.createElement('span');
+        el.className = `hotmic-fx ${set.anim}`;
+        el.textContent = set.emojis[Math.floor(Math.random() * set.emojis.length)];
+        // 랜덤 시작 위치/지연
+        el.style.left = (10 + Math.random() * 80) + '%';
+        el.style.animationDelay = (Math.random() * 0.25) + 's';
+        el.style.fontSize = (18 + Math.random() * 14) + 'px';
+        host.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+    }
 }
 
 // ─── 자동 스크롤 엔진 ───
@@ -467,10 +527,20 @@ function injectUI() {
 
 </div>`;
 
-    document.body.insertAdjacentHTML('beforeend', html);
+    // 모바일 ST는 #sheld가 transform/overflow를 걸어 body 기준 fixed가 안 먹는 경우가 있음.
+    // 가능하면 #sheld 안에 넣고, 없으면 body.
+    const host = document.getElementById('sheld') || document.body;
+    host.insertAdjacentHTML('beforeend', html);
+
     if (settings.fullscreen) {
         document.getElementById('observer-panel')?.classList.add('obs-fs');
         document.getElementById('observer-bar')?.classList.add('obs-fs-bar');
+    }
+    // 활성화 상태인데 아이콘(작게)으로 시작하면 모바일에서 못 보기 쉬움 → ticker 보장
+    if (settings.enabled && settings.state === 'icon') {
+        settings.state = 'ticker';
+        document.getElementById('observer-bar')?.classList.remove('state-icon');
+        document.getElementById('observer-bar')?.classList.add('state-ticker');
     }
     bindEvents();
 }
@@ -627,6 +697,10 @@ function injectSettings() {
             <label for="hotmic-scrollspeed" style="margin-top:6px;">스크롤 속도: <span id="hotmic-speed-val">${settings.scrollSpeed}</span> px/s</label>
             <input type="range" id="hotmic-scrollspeed" min="10" max="120" step="5" value="${settings.scrollSpeed}" style="width:100%;">
             <small class="notes">패널에 마우스를 올리거나 직접 스크롤하면 잠시 멈춥니다.</small>
+
+            <label for="hotmic-fxfreq" style="margin-top:12px;">애니메이션 빈도: <span id="hotmic-fx-val">${settings.fxFrequency}</span>%</label>
+            <input type="range" id="hotmic-fxfreq" min="0" max="100" step="10" value="${settings.fxFrequency}" style="width:100%;">
+            <small class="notes">해설이 뜰 때 모드별 마스코트(🎉 예능 / ⚽ 중계 / 📹 다큐)가 등장할 확률. 0%면 끔. 상황이 격할수록 확률이 올라갑니다.</small>
         </div>
     </div>
 </div>`;
@@ -661,6 +735,16 @@ function injectSettings() {
         const v = parseInt(e.target.value, 10);
         getSettings().scrollSpeed = v;
         const lbl = document.getElementById('hotmic-speed-val');
+        if (lbl) lbl.textContent = v;
+        saveSettingsDebounced();
+    });
+
+    // 애니메이션 빈도 슬라이더
+    const fxInput = document.getElementById('hotmic-fxfreq');
+    fxInput?.addEventListener('input', (e) => {
+        const v = parseInt(e.target.value, 10);
+        getSettings().fxFrequency = v;
+        const lbl = document.getElementById('hotmic-fx-val');
         if (lbl) lbl.textContent = v;
         saveSettingsDebounced();
     });
@@ -724,11 +808,14 @@ function injectWandMenu() {
         saveSettingsDebounced();
         applyEnabledState();
         refreshLabel();
+        // 켜면 무조건 자막바(ticker) 상태로 + 화면 안으로
+        if (s.enabled) {
+            setState('ticker');
+            const bar = document.getElementById('observer-bar');
+            if (bar) bar.style.display = '';
+            setTimeout(runGeneration, 100);
+        }
         syncControls();
-        // 켜면 자막바 상태로 끌어올림
-        if (s.enabled && s.state === 'icon') setState('ticker');
-        // 켜자마자 해설 한 번 시도
-        if (s.enabled) setTimeout(runGeneration, 100);
         // 메뉴 닫기 (모바일)
         document.getElementById('extensionsMenu')?.classList.remove('shown');
         document.querySelector('#extensionsMenuButton')?.classList.remove('active');
