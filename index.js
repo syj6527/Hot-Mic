@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.5.0 ───
+// ─── 🎤 Hot Mic v1.6.0-debug ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
     scrollSpeed: 40,          // px/sec
     fullscreen: false,        // 전체 펼침 상태
     fxFrequency: 30,          // 마스코트 애니메이션 등장 확률 (%)
+    debug: true,              // 화면 디버그 배너 (모바일 진단용, 문제 해결 후 끄기)
 };
 
 function getSettings() {
@@ -730,6 +731,12 @@ function injectSettings() {
             <label for="hotmic-fxfreq" style="margin-top:12px;">애니메이션 빈도: <span id="hotmic-fx-val">${settings.fxFrequency}</span>%</label>
             <input type="range" id="hotmic-fxfreq" min="0" max="100" step="10" value="${settings.fxFrequency}" style="width:100%;">
             <small class="notes">해설이 뜰 때 모드별 마스코트(🎉 예능 / ⚽ 중계 / 📹 다큐)가 등장할 확률. 0%면 끔. 상황이 격할수록 확률이 올라갑니다.</small>
+
+            <label class="checkbox_label" style="margin-top:12px;">
+                <input type="checkbox" id="hotmic-debug" ${settings.debug ? 'checked' : ''}>
+                <span>🐞 디버그 배너 (모바일에서 안 뜰 때 진단용)</span>
+            </label>
+            <small class="notes">켜면 새로고침 시 화면 상단에 진단 정보가 표시됩니다. 문제 해결되면 끄세요.</small>
         </div>
     </div>
 </div>`;
@@ -751,6 +758,7 @@ function injectSettings() {
     bind('hotmic-mode-s', 'mode');
     bind('hotmic-context-s', 'context');
     bind('hotmic-autoscroll', 'autoscroll');
+    bind('hotmic-debug', 'debug');
 
     // 자동스크롤 체크박스 → 즉시 반영
     document.getElementById('hotmic-autoscroll')?.addEventListener('change', () => {
@@ -860,27 +868,87 @@ function setupEventListeners() {
     });
 }
 
+// ─── 화면 디버그 배너 (모바일은 콘솔을 못 보므로 화면에 직접 표시) ───
+function hotmicDebug(msg, isError) {
+    let banner = document.getElementById('hotmic-debug');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'hotmic-debug';
+        banner.style.cssText = [
+            'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:2147483647',
+            'background:rgba(0,0,0,0.9)', 'color:#0f0', 'font:11px/1.4 monospace',
+            'padding:6px 8px', 'max-height:40vh', 'overflow:auto',
+            'white-space:pre-wrap', 'border-bottom:2px solid #0f0', 'pointer-events:auto',
+        ].join(';');
+        // 탭하면 닫힘
+        banner.addEventListener('click', () => banner.remove());
+        document.body.appendChild(banner);
+    }
+    const line = document.createElement('div');
+    line.textContent = msg;
+    if (isError) line.style.color = '#ff5050';
+    banner.appendChild(line);
+}
+
+// 단계별 안전 실행
+function safeStep(label, fn) {
+    try {
+        fn();
+        hotmicDebug('✅ ' + label);
+    } catch (e) {
+        hotmicDebug('❌ ' + label + ' → ' + (e?.message || e), true);
+    }
+}
+
 // ─── 초기화 ───
 jQuery(async () => {
-    injectUI();
-    injectSettings();
-    injectWandMenu();
-    setupEventListeners();
-    syncControls();
-    applyEnabledState();
+    const DEBUG = getSettings().debug;
+
+    if (DEBUG) hotmicDebug('--- Hot Mic 초기화 시작 ---');
+
+    // 각 단계를 독립적으로 — 하나 터져도 나머지는 계속
+    safeStep('injectUI', injectUI);
+    safeStep('injectSettings', injectSettings);
+    safeStep('injectWandMenu', injectWandMenu);
+    safeStep('setupEventListeners', setupEventListeners);
+    safeStep('syncControls', syncControls);
+    safeStep('applyEnabledState', applyEnabledState);
+
+    if (DEBUG) {
+        const bar = document.getElementById('observer-bar');
+        if (!bar) {
+            hotmicDebug('❌ observer-bar 생성 안 됨 (null)', true);
+        } else {
+            const r = bar.getBoundingClientRect();
+            const cs = getComputedStyle(bar);
+            hotmicDebug(`bar: parent=${bar.parentElement?.id || bar.parentElement?.tagName}`);
+            hotmicDebug(`bar: display=${cs.display} pos=${cs.position} bottom=${cs.bottom}`);
+            hotmicDebug(`bar: top=${Math.round(r.top)} left=${Math.round(r.left)} size=${Math.round(r.width)}x${Math.round(r.height)}`);
+            hotmicDebug(`화면: winH=${window.innerHeight} winW=${window.innerWidth}`);
+            if (r.top > window.innerHeight || r.top < -r.height) {
+                hotmicDebug('⚠ bar가 화면 밖에 있음 → CSS 위치 문제', true);
+            } else if (r.width === 0 || r.height === 0) {
+                hotmicDebug('⚠ bar 크기가 0 → 내용/display 문제', true);
+            } else {
+                hotmicDebug('✓ bar는 화면 안에 있음. (가려졌거나 정상)');
+            }
+            hotmicDebug('(이 배너를 탭하면 닫힘)');
+        }
+    }
 
     // 와우메뉴/설정창이 늦게 그려지는 환경 대비 재시도
     let tries = 0;
     const retry = setInterval(() => {
-        injectWandMenu();
-        injectSettings();
+        try { injectWandMenu(); injectSettings(); } catch (e) {}
         if (document.getElementById('hotmic-wand-item') || ++tries > 10) {
             clearInterval(retry);
         }
     }, 1000);
 
     // ST가 로드 중 DOM을 재배치할 수 있으니 위치를 몇 번 더 못박는다
-    [300, 1000, 2500].forEach(ms => setTimeout(enforcePosition, ms));
+    [300, 1000, 2500].forEach(ms => setTimeout(() => {
+        try { enforcePosition(); } catch (e) {}
+    }, ms));
 
     console.log('[Hot Mic] 로드 완료. 캐릭터는 모릅니다.');
 });
