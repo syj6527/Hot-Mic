@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.1.0 ───
+// ─── 🎤 Hot Mic v2.2.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -21,8 +21,10 @@ const DEFAULT_SETTINGS = {
     fxFrequency: 30,          // 마스코트 애니메이션 등장 확률 (%)
     length: 'normal',         // 'short' | 'normal' | 'long' — 해설 분량
     preset: 'all',            // 'all' | 'fact' | 'interview' | 'broadcast' — 구성 프리셋
-    debug: false,             // 화면 디버그 배너 (모바일 진단용, 필요시 설정에서 켜기)
 };
+
+// 디버그는 저장하지 않는 휘발성 (이스터에그로 켠 세션에만 유효, 새로고침 시 자동 off)
+let HOTMIC_DEBUG = false;
 
 function getSettings() {
     if (!extension_settings[EXT_NAME]) {
@@ -57,29 +59,41 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
     const settings = getSettings();
 
     const modePrompts = {
-        docu: `당신은 자연 다큐멘터리 나레이터입니다. 캐릭터를 '관찰 대상 개체'로 취급하고, 인간의 행동을 동물 생태 관찰하듯 건조하게 해설합니다. 본인은 진지하지만 그래서 더 웃긴 톤.
+        docu: `당신은 BBC Earth 급 자연 다큐멘터리 나레이터입니다. 데이비드 애튼버러처럼 우아하고 진지한 어조로, 그러나 대상은 인간 캐릭터를 '개체'로 취급해 동물 생태처럼 해설합니다. 진지함이 극에 달할수록 웃깁니다(데드팬).
 
-문체 예시 (이 톤과 프레임을 따르되 내용은 실제 장면에 맞게):
-- "수컷 개체 [이름]은 또다시 '내가 한 거 아니다' 전략을 시도한다. 그러나 귀끝의 발적 현상과 부자연스러운 시선 회피로 보아, 이미 실패한 것으로 추정된다. 전문가들은 이를 '들킨 츤데레 증후군'이라 부른다."
-- "이는 먹이를 요구하거나 관심을 요구할 때 흔히 관찰되는 행동이다."
-- "현재 [이름]은 자신을 맹수로 생각하고 있으나, 관찰 결과 대형견에 더 가깝다."
-핵심: '개체', '~로 추정된다', '~증후군이라 부른다', 동물 비유.`,
+톤 핵심:
+- 장엄하고 차분한 다큐 어조 + 데드팬. "광활한 원룸 사바나에서, 한 마리의 수컷 개체가 오늘도 생존을 위한 의식을 시작한다."
+- 학술 용어처럼 포장: '~로 추정된다', '~증후군', '구애 행동', '영역 표시', '서열 다툼', '동면 준비'.
+- 진화·본능·생존으로 거창하게 설명한 뒤, 실상은 시시한 진실로 착지. "이 정교한 구애 행동의 목적은, 단지 같이 자고 가기 위함이다."
+- 동물 비유 적극: 맹수인 줄 알지만 대형견, 포식자인 척하지만 사실 길들여진 개체 등.
 
-        sports: `당신은 스포츠 실황 중계진입니다. 캐스터(중계)와 해설위원(해설) 두 명이 핑퐁하듯 주고받습니다. 긴박감, 탄성, 리플레이.
+예시:
+- "수컷 개체는 또다시 '내가 한 게 아니다' 전략을 구사한다. 그러나 귀 끝의 발적과 시선 회피로 보아, 위장은 이미 실패한 것으로 관찰된다. 학계는 이를 '들킨 츤데레 증후군'이라 명명했다."`,
 
-문체 예시 (이 톤을 따르되 내용은 실제 장면에 맞게):
-- "자 갑니다! [이름] 선수! '난 모르는 일인데.' 시치미 떼기 들어갔습니다! 하지만 리플레이 보시죠! 귀끝 붉어졌습니다! 귀끝 붉어졌습니다!"
-- "해설: 저건 들켰네요. / 중계: 예! 완전히 들켰습니다!"
-- "그리고 마지막 발언! '나 오늘도 자고 갈 거야.' 선언 나왔습니다! 자연스럽게 말했지만 사실상 일방적인 통보입니다!"
-핵심: 중계/해설 라벨 핑퐁, 중요 순간 반복 강조, "리플레이 보시죠", 플레이 용어화.`,
+        sports: `당신은 월드컵 결승 실황 중계진입니다. 캐스터(중계)와 해설위원(해설)이 숨 가쁘게 핑퐁합니다. 사소한 일상도 세기의 명승부처럼 중계해 웃깁니다.
 
-        variety: `당신은 한국 예능 프로그램 자막 담당자입니다. 캐릭터의 온갖 심리전과 플러팅을 짧은 한 줄로 정리해 체면을 박살냅니다. 가장 잔혹하고 가장 웃긴 모드.
+톤 핵심:
+- 극도로 흥분, 다급함, 탄성. 느낌표 남발. "아아—! 이게 들어갑니다!"
+- 중계/해설 2인 핑퐁 필수. 중계는 흥분, 해설은 차분히 팩트 폭격.
+- 스포츠 전문용어로 일상 번역: '선제골', '역전', '패스 미스', 'VAR 판독', '경고 누적', '추가시간', '리플레이 보시죠'.
+- 결정적 순간 같은 말 반복 강조. "귀끝 붉어졌습니다! 귀끝 붉어졌습니다!"
+- 손에 땀 쥐게: "자, 운명의 한마디가 나옵니다... 갑니다...!"
 
-문체 예시 (이 톤을 따르되 내용은 실제 장면에 맞게):
-- 이모지 타임라인: "🧺 과일 보냄 / 😶 본인 아님 / 🧺 또 보냄 / 😶 진짜 본인 아님"
-- 번호 정리: "① 밥 달라고 함 ② 고기 넣으라고 함 ③ 자고 간다고 함 까지 완료했습니다. 아직 본인이 집주인인 줄 알고 있습니다."
-- 치트키 한 줄 요약 + 괄호 시간 카운트: "결국 하고 싶은 말: '나 챙겨줘.' (38분째 돌려 말하는 중)"
-핵심: 긴 플러팅을 4글자로 요약, (N분째 ~하는 중) 카운트, 짧고 임팩트, ㅋㅋ 가능. director 필드에 이런 정리체를 적극 활용.`,
+예시:
+- "중계: 자 갑니다, 시치미 작전! '난 모르는 일인데.' / 해설: 아 근데 이거, 리플레이 보시면... 귀끝 붉어졌어요. / 중계: VAR 판독 결과——거짓말 확정입니다! 관중석 뒤집어집니다!"`,
+
+        variety: `당신은 무한도전·런닝맨 급 한국 예능 자막 PD입니다. 캐릭터의 진지한 순간에 능청맞은 자막을 깔아 체면을 박살냅니다. 가장 짓궂고 가장 웃긴 모드.
+
+톤 핵심:
+- 예능 자막 특유의 능청·반전·드립. 진지한 장면 위에 깔리는 무심한 한 줄.
+- 큼직한 캡션체: "(다 보임)", "(여유)", "(허세 100%)", "★위기★", "ㅋㅋㅋ".
+- 이모지 타임라인: "🧺 과일 보냄 → 😶 본인 아님 → 🧺 또 보냄 → 😶 진짜 본인 아님 → 🧺 세 번째 → 😶 박 실장이 함".
+- 번호 정리로 죄목 나열: "① 밥 달라 함 ② 고기 더 넣으라 함 ③ 자고 간다 함. 아직 본인이 집주인인 줄 앎."
+- 치트키 한 줄 요약 + 괄호 시간 카운트(킬러): "결국 하고 싶은 말: '나 챙겨줘.' (38분째 돌려 말하는 중)".
+- 제작진 난입 드립도: "[제작진] 저희도 왜 저러는지 모릅니다."
+
+예시:
+- director에 "① 다정한 척 ② 사실 독점욕 ③ 본인만 모름 (현재 3단계 진행 중)" 같은 정리체 적극 활용.`,
     };
 
     const contextNote = settings.context === 'current'
@@ -119,6 +133,14 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 - 그 간극이 바로 웃음 포인트입니다. 예: 시트상 소심한 캐릭터가 속으로는 음침하게 계산하고 있다거나, 무심한 척하지만 시트의 집착 성향이 새어나온다거나.
 - 단, 이면은 시트와 대화에서 '실제로 뒷받침되는' 것이어야 합니다. 캐릭터 성격에 없는 걸 날조하면 안 됩니다. 베이스는 항상 캐릭터 시트 + 실제 대화입니다.
 - 표면과 이면이 일치하는(솔직한) 캐릭터라면 억지로 반전을 만들지 말고, 그 솔직함 자체를 해설하세요.
+
+[다인원(여러 등장인물) 연출 — 장면에 인물이 2명 이상이면]
+- 속마음 유출과 인터뷰는 한 명에 고정하지 말고, 장면에 등장한 여러 인물(1~N명)을 다양하게 다루세요.
+- 인물마다 이름을 밝히고 속마음을 따로: "[A의 속마음] ... / [B의 속마음] ...". 두 사람의 속마음이 충돌하면 더 좋습니다.
+- 인터뷰는 한 명을 인터뷰하는 도중 다른 인물이 옆에서 끼어들거나 태클 거는 연출을 적극 활용:
+  예) "Q. 왜 화났어요? / A. 안 화났는데요. / (옆에서 B) 화났잖아. / A. 너 좀 조용히 해."
+- 단, 그 장면에 실제로 등장/언급된 인물만. 없는 인물 만들지 마세요.
+- 인물이 한 명뿐이면 평소대로 그 한 명만.
 
 [데드팬(deadpan) 유머 원칙 — 가장 중요한 웃음 기법]
 - 절대 과장하거나 흥분해서 설명하지 마세요. 가장 어이없는 사실을 가장 건조하고 무덤덤하게 툭 던질 때 제일 웃깁니다.
@@ -227,19 +249,38 @@ function collectData() {
     const ctx = getContext();
     const settings = getSettings();
 
-    // 캐릭터 정보 (시트 전체를 충실히 — 인터뷰/속마음의 근거)
+    // 캐릭터 정보 (시트 — 인터뷰/속마음의 근거). 그룹챗이면 멤버 여러 명 수집.
     let charData = '(캐릭터 정보 없음)';
-    if (ctx.characters && ctx.characterId !== undefined) {
-        const char = ctx.characters[ctx.characterId];
-        if (char) {
-            const cc = char.data || {}; // V2 카드 필드
-            charData = [
-                `이름: ${char.name || cc.name || '?'}`,
-                (char.description || cc.description) ? `설명:\n${(char.description || cc.description).slice(0, 1500)}` : '',
-                (char.personality || cc.personality) ? `성격: ${(char.personality || cc.personality).slice(0, 600)}` : '',
-                (char.scenario || cc.scenario) ? `시나리오: ${(char.scenario || cc.scenario).slice(0, 400)}` : '',
-                (cc.mes_example || char.mes_example) ? `예시 대화(말투/성격 참고):\n${(cc.mes_example || char.mes_example).slice(0, 600)}` : '',
-            ].filter(Boolean).join('\n');
+    const sheetOf = (char) => {
+        if (!char) return '';
+        const cc = char.data || {};
+        return [
+            `■ 이름: ${char.name || cc.name || '?'}`,
+            (char.description || cc.description) ? `설명: ${(char.description || cc.description).slice(0, 900)}` : '',
+            (char.personality || cc.personality) ? `성격: ${(char.personality || cc.personality).slice(0, 400)}` : '',
+            (cc.mes_example || char.mes_example) ? `말투 예시: ${(cc.mes_example || char.mes_example).slice(0, 400)}` : '',
+        ].filter(Boolean).join('\n');
+    };
+
+    try {
+        const group = ctx.groups?.find?.(g => g.id === ctx.groupId);
+        if (group && Array.isArray(group.members) && ctx.characters) {
+            // 그룹챗: 멤버 캐릭터들 모두
+            const sheets = group.members
+                .map(av => ctx.characters.find(c => c.avatar === av))
+                .filter(Boolean)
+                .map(sheetOf)
+                .filter(Boolean);
+            if (sheets.length) charData = `[그룹 등장인물 ${sheets.length}명]\n\n` + sheets.join('\n\n');
+        } else if (ctx.characters && ctx.characterId !== undefined) {
+            const single = sheetOf(ctx.characters[ctx.characterId]);
+            if (single) charData = single;
+        }
+    } catch (e) {
+        // 폴백: 단일 캐릭터
+        if (ctx.characters && ctx.characterId !== undefined) {
+            const single = sheetOf(ctx.characters[ctx.characterId]);
+            if (single) charData = single;
         }
     }
 
@@ -268,7 +309,8 @@ function collectData() {
     }
 
     history = contextMsgs.map(m => {
-        const who = m.is_user ? '유저' : (ctx.characters?.[ctx.characterId]?.name || 'AI');
+        // 그룹챗은 메시지마다 화자가 다르므로 m.name 우선 사용
+        const who = m.is_user ? '유저' : (m.name || ctx.characters?.[ctx.characterId]?.name || 'AI');
         return `${who}: ${(m.mes || '').slice(0, 600)}`;
     }).join('\n\n');
 
@@ -405,21 +447,29 @@ function updateTickerPreview(preview) {
     const el = document.querySelector('.obs-ticker-preview');
     if (!el) return;
     const text = preview || '녹음 중...';
-    // 안쪽 흐름용 span 구조로 렌더. 텍스트가 영역보다 길면 우→좌로 흐른다.
     el.innerHTML = `<span class="obs-marquee-inner">${escHtml(text)}</span>`;
     const inner = el.querySelector('.obs-marquee-inner');
-    // 다음 프레임에 너비 비교해서 흐름 여부 결정
+    el.classList.remove('is-flowing');
     requestAnimationFrame(() => {
         if (!inner) return;
-        const overflow = inner.scrollWidth > el.clientWidth + 4;
+        const textW = inner.scrollWidth;
+        const boxW = el.clientWidth;
+        const overflow = textW > boxW + 4;
         if (overflow) {
+            el.classList.add('is-flowing');
             inner.classList.add('obs-marquee-run');
-            // 길이에 비례해 속도 조정 (긴 글일수록 오래)
-            const dur = Math.max(6, Math.round(inner.scrollWidth / 30));
+            // 끝까지 흐르도록 이동 거리 = 텍스트가 박스 밖으로 완전히 나갈 만큼
+            const dist = textW + boxW;
+            inner.style.setProperty('--obs-marquee-start', `${boxW}px`);
+            inner.style.setProperty('--obs-marquee-dist', `-${textW}px`);
+            // 속도: 픽셀당 일정 → 긴 글일수록 길게
+            const dur = Math.max(7, Math.round(dist / 45));
             inner.style.animationDuration = dur + 's';
         } else {
             inner.classList.remove('obs-marquee-run');
             inner.style.animationDuration = '';
+            inner.style.removeProperty('--obs-marquee-dist');
+            inner.style.transform = '';
         }
     });
 }
@@ -810,12 +860,13 @@ function injectSettings() {
             taps.push(now);
             if (taps.length >= 5) {
                 taps = [];
-                const s = getSettings();
-                s.debug = !s.debug;
-                saveSettingsDebounced();
-                const orig = langLabel.textContent;
-                langLabel.textContent = s.debug ? '🐞 디버그 ON (새로고침 시 적용)' : '출력 언어';
-                if (!s.debug) document.getElementById('hotmic-debug')?.remove();
+                HOTMIC_DEBUG = !HOTMIC_DEBUG;
+                langLabel.textContent = HOTMIC_DEBUG ? '🐞 디버그 ON' : '출력 언어';
+                if (HOTMIC_DEBUG) {
+                    showDebugReport(); // 켜는 즉시 진단 표시
+                } else {
+                    document.getElementById('hotmic-debug')?.remove();
+                }
                 setTimeout(() => { langLabel.textContent = '출력 언어'; }, 2000);
             }
         });
@@ -935,6 +986,7 @@ function clearCommentary() {
 
 // ─── 화면 디버그 배너 (모바일은 콘솔을 못 보므로 화면에 직접 표시) ───
 function hotmicDebug(msg, isError) {
+    if (!HOTMIC_DEBUG) return; // 디버그 꺼져있으면 아무것도 안 함
     let banner = document.getElementById('hotmic-debug');
     if (!banner) {
         banner = document.createElement('div');
@@ -946,7 +998,6 @@ function hotmicDebug(msg, isError) {
             'white-space:pre-wrap', 'border-bottom:2px solid #0f0', 'pointer-events:auto',
         ].join(';');
         document.body.appendChild(banner);
-        // 닫기 버튼 (배너 아무데나 눌러서 실수로 닫히지 않게)
         const closeBtn = document.createElement('div');
         closeBtn.textContent = '✕ 닫기';
         closeBtn.style.cssText = 'color:#ff0;text-align:right;cursor:pointer;font-weight:bold;border-bottom:1px solid #0f0;padding-bottom:4px;margin-bottom:4px;';
@@ -959,66 +1010,27 @@ function hotmicDebug(msg, isError) {
     banner.appendChild(line);
 }
 
-// 단계별 안전 실행
+// 단계별 안전 실행 (에러만 콘솔로, 화면 로그는 디버그일 때만)
 function safeStep(label, fn) {
-    hotmicDebug('▶ ' + label + ' 시작');
     try {
         fn();
-        hotmicDebug('✅ ' + label + ' 완료');
+        hotmicDebug('✅ ' + label);
     } catch (e) {
-        hotmicDebug('❌ ' + label + ' 에러: ' + (e?.message || e), true);
-        hotmicDebug('   ' + (e?.stack || '').split('\n').slice(0,2).join(' | '), true);
+        console.error('[Hot Mic] ' + label + ' 에러:', e);
+        hotmicDebug('❌ ' + label + ': ' + (e?.message || e), true);
     }
 }
 
 // ─── 초기화 ───
 jQuery(async () => {
-    const DEBUG = getSettings().debug;
-
-    if (DEBUG) hotmicDebug('--- Hot Mic 초기화 시작 ---');
-
     // 각 단계를 독립적으로 — 하나 터져도 나머지는 계속
     safeStep('injectUI', injectUI);
-    // injectUI 직후 bar 생성 확인
-    hotmicDebug(document.getElementById('observer-bar')
-        ? '  ↳ observer-bar 생성됨 ✓'
-        : '  ↳ observer-bar 없음 ✗', !document.getElementById('observer-bar'));
-    // 자막바 위치를 settings보다 먼저 못박는다 (settings가 모바일에서 멈춰도 자막바는 떠야 함)
     safeStep('enforcePosition(우선)', enforcePosition);
     safeStep('setupEventListeners', setupEventListeners);
     safeStep('applyEnabledState', applyEnabledState);
-    // 설정창은 비동기로 미뤄서, 여기서 멈춰도 위 단계들이 이미 끝나있게 한다
     setTimeout(() => safeStep('injectSettings(지연)', injectSettings), 0);
     setTimeout(() => safeStep('injectWandMenu(지연)', injectWandMenu), 0);
     safeStep('syncControls', syncControls);
-
-    if (DEBUG) {
-        const bar = document.getElementById('observer-bar');
-        if (!bar) {
-            hotmicDebug('❌ observer-bar 생성 안 됨 (null)', true);
-        } else {
-            const r = bar.getBoundingClientRect();
-            const cs = getComputedStyle(bar);
-            hotmicDebug(`bar: parent=${bar.parentElement?.id || bar.parentElement?.tagName}`);
-            hotmicDebug(`bar: display=${cs.display} pos=${cs.position} bottom=${cs.bottom}`);
-            hotmicDebug(`bar: top=${Math.round(r.top)} left=${Math.round(r.left)} size=${Math.round(r.width)}x${Math.round(r.height)}`);
-            hotmicDebug(`화면: winH=${window.innerHeight} winW=${window.innerWidth}`);
-            if (r.top > window.innerHeight || r.top < -r.height) {
-                hotmicDebug('⚠ bar가 화면 밖 → top 교정 시도함', true);
-                // 교정 한 번 더 강제 호출
-                try { enforcePosition(); } catch (e) {}
-                setTimeout(() => {
-                    const r2 = document.getElementById('observer-bar')?.getBoundingClientRect();
-                    if (r2) hotmicDebug(`교정 후: top=${Math.round(r2.top)} (winH=${window.innerHeight})`);
-                }, 100);
-            } else if (r.width === 0 || r.height === 0) {
-                hotmicDebug('⚠ bar 크기가 0 → 내용/display 문제', true);
-            } else {
-                hotmicDebug('✓ bar는 화면 안에 있음. (가려졌거나 정상)');
-            }
-            hotmicDebug('(위 ✕ 닫기 버튼으로 닫으세요)');
-        }
-    }
 
     // 와우메뉴/설정창이 늦게 그려지는 환경 대비 재시도
     let tries = 0;
@@ -1036,3 +1048,24 @@ jQuery(async () => {
 
     console.log('[Hot Mic] 로드 완료. 캐릭터는 모릅니다.');
 });
+
+// 디버그 진단 보고 (이스터에그로 켤 때만 호출)
+function showDebugReport() {
+    hotmicDebug('--- Hot Mic 진단 ---');
+    const bar = document.getElementById('observer-bar');
+    if (!bar) { hotmicDebug('❌ observer-bar 없음', true); return; }
+    const r = bar.getBoundingClientRect();
+    const cs = getComputedStyle(bar);
+    hotmicDebug(`bar: parent=${bar.parentElement?.id || bar.parentElement?.tagName}`);
+    hotmicDebug(`bar: display=${cs.display} pos=${cs.position} bottom=${cs.bottom}`);
+    hotmicDebug(`bar: top=${Math.round(r.top)} left=${Math.round(r.left)} size=${Math.round(r.width)}x${Math.round(r.height)}`);
+    hotmicDebug(`화면: winH=${window.innerHeight} winW=${window.innerWidth}`);
+    hotmicDebug(`상태: ${getSettings().state} / 모드: ${getSettings().mode} / 활성: ${getSettings().enabled}`);
+    if (r.top > window.innerHeight || r.top < -r.height) {
+        hotmicDebug('⚠ bar 화면 밖 → 교정 시도', true);
+        try { enforcePosition(); } catch (e) {}
+    } else {
+        hotmicDebug('✓ bar 화면 안');
+    }
+    hotmicDebug('(위 ✕ 닫기 버튼으로 닫으세요)');
+}

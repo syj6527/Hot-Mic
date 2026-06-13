@@ -167,8 +167,15 @@
     flex: 1;
     font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif;
     position: relative;
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
-    mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* 흐르는 상태일 때만 양옆 페이드 마스크 */
+.obs-ticker-preview.is-flowing {
+    text-overflow: clip;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
 }
 
 .obs-marquee-inner {
@@ -179,7 +186,7 @@
 
 /* 텍스트가 길 때만 우→좌 흐름 */
 .obs-marquee-inner.obs-marquee-run {
-    animation: obs-marquee 12s linear infinite;
+    animation: obs-marquee linear infinite;
 }
 
 /* 터치로 일시정지 */
@@ -188,8 +195,8 @@
 }
 
 @keyframes obs-marquee {
-    0%   { transform: translateX(100%); }
-    100% { transform: translateX(-100%); }
+    0%   { transform: translateX(var(--obs-marquee-start, 100%)); }
+    100% { transform: translateX(var(--obs-marquee-dist, -100%)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
