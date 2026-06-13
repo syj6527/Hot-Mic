@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.14.0 ───
+// ─── 🎤 Hot Mic v2.14.1 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -701,6 +701,7 @@ function injectUI() {
     <div id="observer-panel">
         <div class="obs-opacity-track" title="좌우로 드래그해 투명도 조절">
             <div class="obs-opacity-fill"></div>
+            <div class="obs-opacity-knob"></div>
         </div>
         <div class="obs-panel-header">
             <span class="obs-panel-title">🎤 HOT MIC</span>
@@ -955,21 +956,24 @@ function bindEvents() {
     });
     bar.querySelector('.obs-theme-select')?.addEventListener('click', (e) => e.stopPropagation());
 
-    // 패널 상단 투명도 슬라이더 (좌우 드래그)
+    // 패널 상단 투명도 슬라이더 (얇은 선 + 흰 핸들, 좌우 드래그)
     const opTrack = bar.querySelector('.obs-opacity-track');
     if (opTrack) {
         const fill = opTrack.querySelector('.obs-opacity-fill');
+        const knob = opTrack.querySelector('.obs-opacity-knob');
         const syncFill = () => {
             const v = getSettings().opacity || 92;
             const pct = (v - 30) / 70 * 100; // 30~100 → 0~100%
-            if (fill) fill.style.width = pct + '%';
+            if (fill) fill.style.width = `calc((100% - 24px) * ${pct/100})`;
+            if (knob) knob.style.left = `calc(12px + (100% - 24px) * ${pct/100})`;
         };
         syncFill();
 
         let dragging = false;
         const setFromX = (clientX) => {
             const r = opTrack.getBoundingClientRect();
-            let ratio = (clientX - r.left) / r.width;
+            const pad = 12;
+            let ratio = (clientX - r.left - pad) / (r.width - pad * 2);
             ratio = Math.max(0, Math.min(1, ratio));
             const v = Math.round(30 + ratio * 70); // 30~100
             getSettings().opacity = v;
@@ -1206,13 +1210,12 @@ function applyTheme() {
         el.style.setProperty('background', lightTheme ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)', 'important');
         el.style.setProperty('border-color', lightTheme ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)', 'important');
     });
-    // 투명도 슬라이더 fill 색 + 너비
+    // 투명도 슬라이더 fill/knob 위치 (색은 흑백 고정이라 너비만)
     const opFill = bar.querySelector('.obs-opacity-fill');
-    if (opFill) {
-        opFill.style.setProperty('background', t.accent, 'important');
-        const pct = ((s.opacity || 92) - 30) / 70 * 100;
-        opFill.style.width = pct + '%';
-    }
+    const opKnob = bar.querySelector('.obs-opacity-knob');
+    const pct = ((s.opacity || 92) - 30) / 70 * 100;
+    if (opFill) opFill.style.width = `calc((100% - 24px) * ${pct/100})`;
+    if (opKnob) opKnob.style.left = `calc(12px + (100% - 24px) * ${pct/100})`;
 }
 function applyOpacity() { applyTheme(); }
 
