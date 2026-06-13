@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.6.3-debug ───
+// ─── 🎤 Hot Mic v1.6.4-debug ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -538,11 +538,17 @@ function injectUI() {
         document.getElementById('observer-panel')?.classList.add('obs-fs');
         document.getElementById('observer-bar')?.classList.add('obs-fs-bar');
     }
-    // 활성화 상태인데 아이콘(작게)으로 시작하면 모바일에서 못 보기 쉬움 → ticker 보장
-    if (settings.enabled && settings.state === 'icon') {
+    // 활성화 상태인데 아이콘(작게)으로 시작하면 모바일에서 못 보기 쉬움 → ticker 보장.
+    // 또한 패널(state-panel)로 시작하면 키가 커서 bottom 고정 시 위쪽이 화면 밖으로 넘침.
+    // 모바일에서는 무조건 ticker(한 줄)로 시작한다.
+    const isMobileInit = window.matchMedia('(max-width: 1000px)').matches;
+    if (settings.enabled && (settings.state === 'icon' || (isMobileInit && settings.state === 'panel'))) {
         settings.state = 'ticker';
-        document.getElementById('observer-bar')?.classList.remove('state-icon');
-        document.getElementById('observer-bar')?.classList.add('state-ticker');
+    }
+    const barEl = document.getElementById('observer-bar');
+    if (barEl) {
+        barEl.className = `state-${settings.state}`;
+        if (settings.fullscreen && settings.state === 'panel') barEl.classList.add('obs-fs-bar');
     }
     bindEvents();
     enforcePosition();
@@ -572,6 +578,15 @@ function enforcePosition() {
         bar.style.setProperty('top', 'auto', 'important');
         bar.style.setProperty('transform', 'none', 'important');
         bar.style.setProperty('z-index', '100000', 'important');
+
+        // 패널이 열린 상태에서 키가 화면을 넘으면 위로 삐져나가므로,
+        // 패널 최대 높이를 "화면 높이 - 하단여백 - 위쪽안전여백"으로 제한한다.
+        const panel = document.getElementById('observer-panel');
+        if (panel) {
+            const topSafe = 12;
+            const maxH = Math.max(120, window.innerHeight - bottomPx - topSafe - 8);
+            panel.style.setProperty('max-height', maxH + 'px', 'important');
+        }
     }
 }
 
