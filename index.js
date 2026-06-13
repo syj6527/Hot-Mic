@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.3.0 ───
+// ─── 🎤 Hot Mic v2.4.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS = {
     fxFrequency: 30,          // 마스코트 애니메이션 등장 확률 (%)
     length: 'normal',         // 'short' | 'normal' | 'long' — 해설 분량
     preset: 'all',            // 'all' | 'fact' | 'interview' | 'broadcast' — 구성 프리셋
+    opacity: 92,              // 자막바/패널 불투명도 (%)
 };
 
 // 디버그는 저장하지 않는 휘발성 (이스터에그로 켠 세션에만 유효, 새로고침 시 자동 off)
@@ -855,6 +856,9 @@ function buildSettingsModal() {
 
         <label class="obs-set-label" style="margin-top:10px;">이모지 빈도: <span id="m-fx-val">${s.fxFrequency}</span>%</label>
         <input type="range" id="m-fxfreq" min="0" max="100" step="10" value="${s.fxFrequency}" style="width:100%;">
+
+        <label class="obs-set-label" style="margin-top:10px;">불투명도: <span id="m-op-val">${s.opacity}</span>%</label>
+        <input type="range" id="m-opacity" min="30" max="100" step="5" value="${s.opacity}" style="width:100%;">
     `;
 
     const bindM = (id, key) => {
@@ -875,6 +879,15 @@ function buildSettingsModal() {
         getSettings().fxFrequency = v;
         const lbl = document.getElementById('m-fx-val');
         if (lbl) lbl.textContent = v;
+        saveSettingsDebounced();
+    });
+
+    document.getElementById('m-opacity')?.addEventListener('input', (e) => {
+        const v = parseInt(e.target.value, 10);
+        getSettings().opacity = v;
+        const lbl = document.getElementById('m-op-val');
+        if (lbl) lbl.textContent = v;
+        applyOpacity();
         saveSettingsDebounced();
     });
 
@@ -911,6 +924,15 @@ function closeSettingsModal() {
 function applyEnabledState() {
     const bar = document.getElementById('observer-bar');
     if (bar) bar.style.display = getSettings().enabled ? '' : 'none';
+}
+
+// 불투명도 적용 (ticker/panel 배경 알파)
+function applyOpacity() {
+    const a = Math.max(0.3, Math.min(1, (getSettings().opacity || 92) / 100));
+    const ticker = document.getElementById('observer-ticker');
+    const panel = document.getElementById('observer-panel');
+    if (ticker) ticker.style.setProperty('background', `rgba(10,10,10,${a})`, 'important');
+    if (panel) panel.style.setProperty('background', `rgba(10,10,10,${a})`, 'important');
 }
 
 // 설정 값 동기화 (드로어 + 모달)
@@ -1048,6 +1070,7 @@ jQuery(async () => {
     safeStep('enforcePosition(우선)', enforcePosition);
     safeStep('setupEventListeners', setupEventListeners);
     safeStep('applyEnabledState', applyEnabledState);
+    safeStep('applyOpacity', applyOpacity);
     setTimeout(() => safeStep('injectSettings(지연)', injectSettings), 0);
     setTimeout(() => safeStep('injectWandMenu(지연)', injectWandMenu), 0);
     safeStep('syncControls', syncControls);
