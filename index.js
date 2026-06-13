@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.0.0 ───
+// ─── 🎤 Hot Mic v1.1.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -13,13 +13,32 @@ const DEFAULT_SETTINGS = {
     state: 'ticker',          // 'icon' | 'ticker' | 'panel'
     mode: 'variety',          // 'docu' | 'sports' | 'variety'
     context: 'recent5',       // 'current' | 'recent5' | 'all'
+    profile: '',              // 연결 프로필 이름 ('' = 현재 연결 사용)
+    language: 'ko',           // 'ko' | 'en'
 };
 
 function getSettings() {
     if (!extension_settings[EXT_NAME]) {
         extension_settings[EXT_NAME] = { ...DEFAULT_SETTINGS };
     }
+    // 누락 키 보강 (구버전 설정 호환)
+    for (const k in DEFAULT_SETTINGS) {
+        if (extension_settings[EXT_NAME][k] === undefined) {
+            extension_settings[EXT_NAME][k] = DEFAULT_SETTINGS[k];
+        }
+    }
     return extension_settings[EXT_NAME];
+}
+
+// 연결 프로필 목록 읽기 (Connection Manager)
+function getConnectionProfiles() {
+    try {
+        const cm = extension_settings.connectionManager;
+        if (cm && Array.isArray(cm.profiles)) {
+            return cm.profiles.map(p => ({ id: p.id, name: p.name }));
+        }
+    } catch (e) { /* noop */ }
+    return [];
 }
 
 // ─── 상태 ───
@@ -62,11 +81,15 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
         ? '최근 5개의 대화를 맥락으로 삼아 분석하세요.'
         : '전체 대화 흐름을 바탕으로 분석하세요.';
 
+    const langNote = settings.language === 'en'
+        ? '\n\n모든 해설은 영어로 작성하세요. (Write all commentary in English. Keep the same satirical reality-show tone.)'
+        : '\n\n모든 해설은 한국어로 작성하세요.';
+
     const systemPrompt = `${modePrompts[settings.mode]}
 
 당신은 관찰자입니다. 캐릭터는 당신의 존재를 모릅니다. 당신의 해설은 캐릭터에게 보이지 않으며, 다음 대화에 영향을 주지 않습니다.
 
-${contextNote}
+${contextNote}${langNote}
 
 반드시 JSON 형식으로만 응답하세요. 다른 텍스트, 마크다운 코드블록 없이 순수 JSON만.
 
@@ -106,20 +129,42 @@ ${chatHistory}
 
 위 마지막 캐릭터 응답을 해설해주세요. JSON만 출력하세요.`;
 
-    // generateQuietPrompt는 ST 컨텍스트에서 런타임에 꺼낸다 (버전별 export 차이 회피).
-    // (quiet_prompt, quietToLoud, skipWIAN, quietImage, quietName, responseLength, noContext)
-    // noContext=true → 현재 채팅 컨텍스트를 자동 주입하지 않음 (우리가 직접 넣은 것만 사용)
-    const genQuiet = getContext().generateQuietPrompt;
-    if (typeof genQuiet !== 'function') {
-        throw new Error('generateQuietPrompt를 찾을 수 없습니다. ST 버전을 확인하세요.');
+    let raw;
+
+    // 프로필이 지정돼 있고 ConnectionManagerRequestService가 있으면 → 격리 호출
+    // (메인 RP 연결을 건드리지 않고 별도 프로필로 해설 생성)
+    const profileName = settings.profile;
+    const cmrs = getContext().ConnectionManagerRequestService;
+    const profiles = getConnectionProfiles();
+    const targetProfile = profileName
+        ? profiles.find(p => p.name === profileName || p.id === profileName)
+        : null;
+
+    if (targetProfile && cmrs && typeof cmrs.sendRequest === 'function') {
+        try {
+            const result = await cmrs.sendRequest(
+                targetProfile.id,
+                [{ role: 'user', content: fullPrompt }],
+                1000,
+            );
+            // 반환 형태가 버전별로 다름: 문자열 또는 {content}
+            raw = typeof result === 'string' ? result : (result?.content || result?.text || '');
+        } catch (e) {
+            console.warn('[Hot Mic] 프로필 격리 호출 실패, 기본 연결로 폴백:', e);
+        }
     }
 
-    let raw;
-    try {
-        raw = await genQuiet(fullPrompt, false, true, null, '관찰자', null, true);
-    } catch (e) {
-        // 구버전 ST 호환: 인자 시그니처가 다를 수 있어 폴백
-        raw = await genQuiet(fullPrompt, false, true);
+    // 폴백: generateQuietPrompt (현재 연결 사용)
+    if (!raw) {
+        const genQuiet = getContext().generateQuietPrompt;
+        if (typeof genQuiet !== 'function') {
+            throw new Error('generateQuietPrompt를 찾을 수 없습니다. ST 버전을 확인하세요.');
+        }
+        try {
+            raw = await genQuiet(fullPrompt, false, true, null, '관찰자', null, true);
+        } catch (e) {
+            raw = await genQuiet(fullPrompt, false, true);
+        }
     }
 
     const clean = String(raw || '')
@@ -400,13 +445,113 @@ function bindEvents() {
     bar.querySelector('.obs-mode-select')?.addEventListener('change', (e) => {
         getSettings().mode = e.target.value;
         saveSettingsDebounced();
+        syncControls();
     });
 
     // 맥락 변경
     bar.querySelector('.obs-context-select')?.addEventListener('change', (e) => {
         getSettings().context = e.target.value;
         saveSettingsDebounced();
+        syncControls();
     });
+}
+
+// ─── 설정 드로어 ───
+function injectSettings() {
+    const container = document.getElementById('extensions_settings2')
+        || document.getElementById('extensions_settings');
+    if (!container || document.getElementById('hotmic-settings')) return;
+
+    const settings = getSettings();
+    const profiles = getConnectionProfiles();
+
+    const profileOptions = ['<option value="">기본 (현재 연결)</option>']
+        .concat(profiles.map(p =>
+            `<option value="${escHtml(p.name)}" ${settings.profile === p.name ? 'selected' : ''}>${escHtml(p.name)}</option>`
+        )).join('');
+
+    const html = `
+<div id="hotmic-settings" class="extension_settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>🎤 Hot Mic</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <label class="checkbox_label" style="margin-bottom:10px;">
+                <input type="checkbox" id="hotmic-enabled" ${settings.enabled ? 'checked' : ''}>
+                <span>활성화 (응답마다 자동 녹음)</span>
+            </label>
+
+            <label for="hotmic-profile">해설 생성 연결 프로필</label>
+            <select id="hotmic-profile" class="text_pole">
+                ${profileOptions}
+            </select>
+            <small class="notes">메인 RP와 다른 모델로 해설을 뽑고 싶을 때 선택. (예: RP는 GLM, 해설은 Claude)</small>
+
+            <label for="hotmic-language" style="margin-top:10px;">출력 언어</label>
+            <select id="hotmic-language" class="text_pole">
+                <option value="ko" ${settings.language === 'ko' ? 'selected' : ''}>한국어</option>
+                <option value="en" ${settings.language === 'en' ? 'selected' : ''}>English</option>
+            </select>
+
+            <label for="hotmic-mode-s" style="margin-top:10px;">나레이션 모드</label>
+            <select id="hotmic-mode-s" class="text_pole">
+                <option value="docu"    ${settings.mode === 'docu'    ? 'selected' : ''}>🎬 다큐멘터리</option>
+                <option value="sports"  ${settings.mode === 'sports'  ? 'selected' : ''}>🏟️ 스포츠 중계</option>
+                <option value="variety" ${settings.mode === 'variety' ? 'selected' : ''}>📺 예능</option>
+            </select>
+
+            <label for="hotmic-context-s" style="margin-top:10px;">맥락 범위</label>
+            <select id="hotmic-context-s" class="text_pole">
+                <option value="current" ${settings.context === 'current' ? 'selected' : ''}>현재 메시지만</option>
+                <option value="recent5" ${settings.context === 'recent5' ? 'selected' : ''}>최근 5턴</option>
+                <option value="all"     ${settings.context === 'all'     ? 'selected' : ''}>전체 대화</option>
+            </select>
+        </div>
+    </div>
+</div>`;
+
+    container.insertAdjacentHTML('beforeend', html);
+
+    // 바인딩 + 자막바 select와 양방향 동기화
+    const bind = (id, key) => {
+        document.getElementById(id)?.addEventListener('change', (e) => {
+            const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+            getSettings()[key] = v;
+            saveSettingsDebounced();
+            syncControls();
+        });
+    };
+    bind('hotmic-enabled', 'enabled');
+    bind('hotmic-profile', 'profile');
+    bind('hotmic-language', 'language');
+    bind('hotmic-mode-s', 'mode');
+    bind('hotmic-context-s', 'context');
+
+    // 활성화 토글 시 자막바 표시/숨김
+    document.getElementById('hotmic-enabled')?.addEventListener('change', applyEnabledState);
+    applyEnabledState();
+}
+
+// 활성화 상태에 따라 자막바 표시
+function applyEnabledState() {
+    const bar = document.getElementById('observer-bar');
+    if (bar) bar.style.display = getSettings().enabled ? '' : 'none';
+}
+
+// 설정창 ↔ 자막바 컨트롤 값 동기화
+function syncControls() {
+    const s = getSettings();
+    const set = (sel, val) => { const el = document.querySelector(sel); if (el && el.value !== val) el.value = val; };
+    set('.obs-mode-select', s.mode);
+    set('.obs-context-select', s.context);
+    set('#hotmic-mode-s', s.mode);
+    set('#hotmic-context-s', s.context);
+    set('#hotmic-profile', s.profile);
+    set('#hotmic-language', s.language);
+    const en = document.getElementById('hotmic-enabled');
+    if (en) en.checked = s.enabled;
 }
 
 // ─── 이벤트 리스너 ───
@@ -420,6 +565,8 @@ function setupEventListeners() {
 // ─── 초기화 ───
 jQuery(async () => {
     injectUI();
+    injectSettings();
     setupEventListeners();
+    syncControls();
     console.log('[Hot Mic] 로드 완료. 캐릭터는 모릅니다.');
 });
