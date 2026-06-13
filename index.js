@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.6.2-debug ───
+// ─── 🎤 Hot Mic v1.6.3-debug ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -686,6 +686,7 @@ function injectSettings() {
         )).join('');
     hotmicDebug('  · profileOptions 완성');
 
+    hotmicDebug('  · html 생성 시작');
     const html = `
 <div id="hotmic-settings" class="extension_settings">
     <div class="inline-drawer">
@@ -746,9 +747,9 @@ function injectSettings() {
     </div>
 </div>`;
 
+    hotmicDebug('  · html 완성, 삽입 직전');
     container.insertAdjacentHTML('beforeend', html);
-
-    // 바인딩 + 자막바 select와 양방향 동기화
+    hotmicDebug('  · 삽입 완료, 바인딩 시작');
     const bind = (id, key) => {
         document.getElementById(id)?.addEventListener('change', (e) => {
             const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -923,11 +924,14 @@ jQuery(async () => {
     hotmicDebug(document.getElementById('observer-bar')
         ? '  ↳ observer-bar 생성됨 ✓'
         : '  ↳ observer-bar 없음 ✗', !document.getElementById('observer-bar'));
-    safeStep('injectSettings', injectSettings);
-    safeStep('injectWandMenu', injectWandMenu);
+    // 자막바 위치를 settings보다 먼저 못박는다 (settings가 모바일에서 멈춰도 자막바는 떠야 함)
+    safeStep('enforcePosition(우선)', enforcePosition);
     safeStep('setupEventListeners', setupEventListeners);
-    safeStep('syncControls', syncControls);
     safeStep('applyEnabledState', applyEnabledState);
+    // 설정창은 비동기로 미뤄서, 여기서 멈춰도 위 단계들이 이미 끝나있게 한다
+    setTimeout(() => safeStep('injectSettings(지연)', injectSettings), 0);
+    setTimeout(() => safeStep('injectWandMenu(지연)', injectWandMenu), 0);
+    safeStep('syncControls', syncControls);
 
     if (DEBUG) {
         const bar = document.getElementById('observer-bar');
