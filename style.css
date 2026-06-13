@@ -365,6 +365,17 @@
     line-height: 1.6;
     font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif;
     white-space: pre-wrap;
+    max-height: 38vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-right: 4px;
+}
+
+.obs-block-content::-webkit-scrollbar { width: 5px; }
+.obs-block-content::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
 }
 
 /* 속마음 — slightly warmer */

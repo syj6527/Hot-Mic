@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.7.0 ───
+// ─── 🎤 Hot Mic v2.8.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -25,14 +25,14 @@ const DEFAULT_SETTINGS = {
     theme: 'dark',            // 색상 테마
 };
 
-// 색상 테마 정의 (배경 RGB, 강조색, 텍스트색)
+// 색상 테마 정의 (배경 RGB, 강조색, 텍스트색, 버튼색)
 const HOTMIC_THEMES = {
-    dark:    { name: '🖤 기본 (검정)',   bg: '10,10,10',   accent: '#ff3c3c', text: 'rgba(255,255,255,0.96)' },
-    light:   { name: '🤍 화이트',        bg: '245,245,245', accent: '#e23c3c', text: 'rgba(20,20,20,0.95)' },
-    midnight:{ name: '🌌 미드나잇 블루',  bg: '14,20,38',   accent: '#5b8cff', text: 'rgba(225,235,255,0.96)' },
-    forest:  { name: '🌲 포레스트',       bg: '12,26,18',   accent: '#4fd18b', text: 'rgba(225,255,238,0.96)' },
-    wine:    { name: '🍷 와인',          bg: '28,10,18',   accent: '#ff5c8a', text: 'rgba(255,228,238,0.96)' },
-    sepia:   { name: '📜 세피아',         bg: '32,24,14',   accent: '#e0a85a', text: 'rgba(255,240,220,0.96)' },
+    dark:    { name: '🖤 기본 (검정)',   bg: '34,34,38',   accent: '#ff5a5a', text: 'rgba(255,255,255,0.96)', btn: 'rgba(255,255,255,0.75)' },
+    light:   { name: '🤍 화이트',        bg: '248,248,250', accent: '#d83a3a', text: 'rgba(28,28,32,0.95)',   btn: 'rgba(40,40,45,0.8)' },
+    midnight:{ name: '🌌 미드나잇 블루',  bg: '28,38,64',   accent: '#7aa2ff', text: 'rgba(228,238,255,0.97)', btn: 'rgba(200,215,255,0.75)' },
+    forest:  { name: '🌲 포레스트',       bg: '26,46,34',   accent: '#5fe39c', text: 'rgba(228,255,240,0.97)', btn: 'rgba(200,255,222,0.75)' },
+    wine:    { name: '🍷 와인',          bg: '52,24,34',   accent: '#ff7aa6', text: 'rgba(255,232,240,0.97)', btn: 'rgba(255,210,224,0.75)' },
+    sepia:   { name: '📜 세피아',         bg: '54,42,28',   accent: '#f0bd72', text: 'rgba(255,244,228,0.97)', btn: 'rgba(255,232,200,0.78)' },
 };
 
 // 디버그는 저장하지 않는 휘발성 (이스터에그로 켠 세션에만 유효, 새로고침 시 자동 off)
@@ -600,6 +600,17 @@ function injectUI() {
         <div class="obs-panel-header">
             <span class="obs-panel-title">🎤 HOT MIC</span>
             <div class="obs-panel-controls">
+                <select class="obs-select obs-mode-select" title="나레이션 모드">
+                    <option value="docu"   ${settings.mode === 'docu'    ? 'selected' : ''}>🎬 다큐</option>
+                    <option value="sports" ${settings.mode === 'sports'  ? 'selected' : ''}>🏟️ 중계</option>
+                    <option value="variety"${settings.mode === 'variety' ? 'selected' : ''}>📺 예능</option>
+                </select>
+                <select class="obs-select obs-context-select" title="맥락 범위">
+                    <option value="current" ${settings.context === 'current'  ? 'selected' : ''}>현재</option>
+                    <option value="recent5" ${settings.context === 'recent5'  ? 'selected' : ''}>5턴</option>
+                    <option value="all"     ${settings.context === 'all'      ? 'selected' : ''}>전체</option>
+                </select>
+                <button class="obs-btn-small obs-theme-toggle" title="테마 변경">🎨</button>
                 <button class="obs-btn-small obs-regen" title="재생성">↺</button>
                 <button class="obs-btn-small obs-fullscreen" title="전체 펼치기">⛶</button>
                 <button class="obs-btn-small obs-collapse" title="접기">▼</button>
@@ -746,6 +757,38 @@ function bindEvents() {
             getSettings().fullscreen = on;
             saveSettingsDebounced();
             btn.title = on ? '원래대로' : '전체 펼치기';
+        })
+    );
+
+    // 헤더 모드 변경
+    bar.querySelector('.obs-mode-select')?.addEventListener('change', (e) => {
+        e.stopPropagation();
+        getSettings().mode = e.target.value;
+        saveSettingsDebounced();
+        syncControls();
+    });
+    bar.querySelector('.obs-mode-select')?.addEventListener('click', (e) => e.stopPropagation());
+
+    // 헤더 맥락 변경
+    bar.querySelector('.obs-context-select')?.addEventListener('change', (e) => {
+        e.stopPropagation();
+        getSettings().context = e.target.value;
+        saveSettingsDebounced();
+        syncControls();
+    });
+    bar.querySelector('.obs-context-select')?.addEventListener('click', (e) => e.stopPropagation());
+
+    // 헤더 테마 토글 (다음 테마로 순환)
+    bar.querySelectorAll('.obs-theme-toggle').forEach(btn =>
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const keys = Object.keys(HOTMIC_THEMES);
+            const cur = keys.indexOf(getSettings().theme);
+            const next = keys[(cur + 1) % keys.length];
+            getSettings().theme = next;
+            applyTheme();
+            saveSettingsDebounced();
+            syncControls();
         })
     );
 }
@@ -939,6 +982,17 @@ function applyTheme() {
     bar.querySelectorAll('.obs-ticker-recdot, .obs-icon-recdot').forEach(el => {
         el.style.setProperty('background', t.accent, 'important');
     });
+    // 헤더 버튼 + 헤더 select 색 (흰 배경에서 안 보이던 문제 해결)
+    bar.querySelectorAll('.obs-btn-small').forEach(el => {
+        el.style.setProperty('color', t.btn, 'important');
+    });
+    bar.querySelectorAll('.obs-select').forEach(el => {
+        el.style.setProperty('color', t.text, 'important');
+        // 흰 테마면 select 배경도 밝게, 어두운 테마면 어둡게
+        const lightTheme = s.theme === 'light';
+        el.style.setProperty('background', lightTheme ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)', 'important');
+        el.style.setProperty('border-color', lightTheme ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)', 'important');
+    });
 }
 function applyOpacity() { applyTheme(); }
 
@@ -948,6 +1002,8 @@ function syncControls() {
     const set = (sel, val) => { const el = document.querySelector(sel); if (el && el.value !== val) el.value = val; };
     set('#hotmic-mode', s.mode);
     set('#hotmic-context', s.context);
+    set('.obs-mode-select', s.mode);
+    set('.obs-context-select', s.context);
     set('#hotmic-language', s.language);
     set('#hotmic-length', s.length);
     set('#hotmic-preset', s.preset);
