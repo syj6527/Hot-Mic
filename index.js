@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.6.0-debug ───
+// ─── 🎤 Hot Mic v1.6.1-debug ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -877,12 +877,16 @@ function hotmicDebug(msg, isError) {
         banner.style.cssText = [
             'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:2147483647',
             'background:rgba(0,0,0,0.9)', 'color:#0f0', 'font:11px/1.4 monospace',
-            'padding:6px 8px', 'max-height:40vh', 'overflow:auto',
+            'padding:6px 8px', 'max-height:75vh', 'overflow:auto',
             'white-space:pre-wrap', 'border-bottom:2px solid #0f0', 'pointer-events:auto',
         ].join(';');
-        // 탭하면 닫힘
-        banner.addEventListener('click', () => banner.remove());
         document.body.appendChild(banner);
+        // 닫기 버튼 (배너 아무데나 눌러서 실수로 닫히지 않게)
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = '✕ 닫기';
+        closeBtn.style.cssText = 'color:#ff0;text-align:right;cursor:pointer;font-weight:bold;border-bottom:1px solid #0f0;padding-bottom:4px;margin-bottom:4px;';
+        closeBtn.addEventListener('click', () => banner.remove());
+        banner.appendChild(closeBtn);
     }
     const line = document.createElement('div');
     line.textContent = msg;
@@ -892,11 +896,13 @@ function hotmicDebug(msg, isError) {
 
 // 단계별 안전 실행
 function safeStep(label, fn) {
+    hotmicDebug('▶ ' + label + ' 시작');
     try {
         fn();
-        hotmicDebug('✅ ' + label);
+        hotmicDebug('✅ ' + label + ' 완료');
     } catch (e) {
-        hotmicDebug('❌ ' + label + ' → ' + (e?.message || e), true);
+        hotmicDebug('❌ ' + label + ' 에러: ' + (e?.message || e), true);
+        hotmicDebug('   ' + (e?.stack || '').split('\n').slice(0,2).join(' | '), true);
     }
 }
 
@@ -908,6 +914,10 @@ jQuery(async () => {
 
     // 각 단계를 독립적으로 — 하나 터져도 나머지는 계속
     safeStep('injectUI', injectUI);
+    // injectUI 직후 bar 생성 확인
+    hotmicDebug(document.getElementById('observer-bar')
+        ? '  ↳ observer-bar 생성됨 ✓'
+        : '  ↳ observer-bar 없음 ✗', !document.getElementById('observer-bar'));
     safeStep('injectSettings', injectSettings);
     safeStep('injectWandMenu', injectWandMenu);
     safeStep('setupEventListeners', setupEventListeners);
@@ -932,7 +942,7 @@ jQuery(async () => {
             } else {
                 hotmicDebug('✓ bar는 화면 안에 있음. (가려졌거나 정상)');
             }
-            hotmicDebug('(이 배너를 탭하면 닫힘)');
+            hotmicDebug('(위 ✕ 닫기 버튼으로 닫으세요)');
         }
     }
 
