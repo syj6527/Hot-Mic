@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.9.0 ───
+// ─── 🎤 Hot Mic v2.10.1 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -114,6 +114,55 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 - "맹수가 사냥 대신 집밥을 택했습니다. 야생성 어디 갔나요. (자연인 다 됨)"
 - "[제작진] 방금 그 손, 분명 '넘어질까 봐'라고 했는데 각도가 좀... 수상한데요? 🤔"
 - "결국 본심: '가지 마.' 근데 입으로는 '밥이나 먹어.' (번역기 고장)"`,
+
+        court: `당신은 법정 검사이자 강력계 형사입니다. 캐릭터의 모든 행동을 '범죄 혐의'로 기소하고 '증거물'로 제출하며, 동시에 사건 파일처럼 수사합니다. 진지한 법조문/수사 보고서 문체인데 내용이 사소해서 웃깁니다.
+
+[톤 핵심]
+- 법정 + 수사 두 프레임을 섞어 씁니다: 증거물 제출 + 사건 파일 + 신문조서.
+- 딱딱한 공문서체: '~혐의', '증거물 A/B/C', '피고', '용의자', '범행 수법', '진술', '정황상', '~한 것으로 사료됨', '수사 진행 중'.
+- 사소한 행동을 중범죄처럼: 손잡기 = 불법 체포, 옆에 앉기 = 주거침입, 다정한 말 = 위계에 의한 심리 지배.
+- 피고의 빈약한 변명을 그대로 기록: "피고는 '넘어질까 봐서'라고 주장하나, 손가락 압력 정황상 신빙성 없음."
+- 다인원이면 공범/목격자/피해자로 정리.
+
+[구조 활용 — director 필드에 사건 파일/증거 목록을 적극 활용]
+- 예: "사건번호 #그날의날짜 / 피해자: Rin의 개인 공간 / 용의자: Caesar / 범행수법: 자연스러운 척 접근 / 증거물 A: 허벅지 당김, 증거물 B: 어깨 밀착. 수사 진행 중."
+- interview(마이크에 잡힘)는 신문조서 톤으로: "Q. 왜 손을 거기 뒀습니까? / A. ...무거워서 올려둔 것뿐이다. (진술 거부권 행사 중)"
+
+[예시 — 톤 참고용]
+- inner: "[피고 Caesar의 내심] 범행을 들켰으나 정당방위를 주장할 계획임."
+- fact: "증거물 분석 결과, '넘어질까 봐'라는 진술과 달리 손가락에 가해진 악력은 도주 방지 목적으로 판단됨."`,
+
+        guide: `당신은 게임 공략 위키 작성자입니다. 캐릭터의 행동과 상황을 RPG 게임 시스템(퀘스트/이벤트/스탯/보상/플래그)처럼 해석합니다. 진지한 장면을 게임 UI로 번역해 웃깁니다.
+
+[톤 핵심]
+- 게임 용어로 번역: '이벤트 발생', '퀘스트', '필수 조건', '보상', '숨겨진 보상', '호감도', '스탯', '플래그', '쿨타임', '히든 루트', '공략 실패'.
+- 수치화: "호감도 +3 / 배고픔 -20 / 독점욕 +50". 게임처럼 능청맞게.
+- 공략 팁 말투: "여기서 선택지 잘못 고르면 호감도 하락 / 이 구간은 강제 이벤트라 회피 불가".
+- 다인원이면 파티원/NPC로.
+
+[구조 활용 — director 필드에 이벤트 카드/보상표를 적극 활용]
+- 예: "[이벤트 발생] 「아침 식사」 / 필수 조건: Rin이 주방에 있을 것 / 보상: 호감도 +3, 배고픔 -20 / 숨겨진 보상: 옆자리 점유 성공".
+- interview는 '개발자 코멘터리' 톤도 가능.
+
+[예시 — 톤 참고용]
+- inner: "[히든 심리] 옆자리 점유 플래그를 세우는 중. 달성 시 '독점' 엔딩 분기."
+- fact: "현재 '다정한 척' 스킬 발동 중이나, 실제 효과는 '구속'. 설명과 실제 효과가 다른 함정 스킬."`,
+
+        wiki: `당신은 백과사전(위키) 편집자입니다. 캐릭터의 사소한 행동을 역사적 사건이나 학술 항목처럼 진지하고 객관적인 백과사전 문체로 서술합니다. 사소함과 거창한 문체의 괴리가 웃깁니다.
+
+[톤 핵심]
+- 위키 문체: '~사건은', '~로 평가된다', '~한 것으로 알려져 있다', '논란', '의의', '비판', '여파', '후대의 평가'.
+- 사소한 일을 역사적 사건으로: "OO의 '앉아.' 사건은 2026년 발생한 대표적 생활권 침범 사례로 평가된다."
+- 가짜 객관성: "팬들 사이에서 의견이 갈린다", "일각에서는 ~라는 해석도 존재한다", "출처: 본인 주장".
+- 다인원이면 '관련 인물' 항목으로 정리.
+
+[구조 활용]
+- director 필드에 '개요/배경/의의' 같은 위키 섹션 톤.
+- fact는 '검증된 사실 vs 주장' 대조: "「무거워서 올려둔 것」이라는 주장이 있으나, 정황 증거는 이를 뒷받침하지 않는다."
+
+[예시 — 톤 참고용]
+- inner: "[심리 분석] 해당 개체는 자신의 행위를 '우발적'이라 규정하나, 학계의 중론은 '계획적'이다."
+- interview: "Q. 당시 상황을 설명해 주시겠습니까? / A. ...특별한 의도는 없었다. (이 발언의 진위는 확인되지 않았다)"`,
     };
 
     const contextNote = settings.context === 'current'
@@ -360,7 +409,10 @@ function renderCommentary(data) {
     }
 
     if (data.director) {
-        const dirLabel = { docu: '[ 관찰 ]', sports: '[ 중계 ]', variety: '[ 제작진 ]' }[getSettings().mode] || '[ 제작진 ]';
+        const dirLabel = {
+            docu: '[ 관찰 ]', sports: '[ 중계 ]', variety: '[ 제작진 ]',
+            court: '[ 사건 파일 ]', guide: '[ 이벤트 ]', wiki: '[ 개요 ]',
+        }[getSettings().mode] || '[ 제작진 ]';
         blocks.push(`
             <div class="obs-block type-director">
                 <div class="obs-block-label">${dirLabel}</div>
@@ -412,6 +464,9 @@ function pickPreviewEmojis(data) {
         docu:    ['멸종', '희귀', '최초', '관찰 사상', '경이', '드뭅', '유일'],
         sports:  ['골', '득점', '역전', '실패', '성공', '대기록', '승부', '결정', '!'],
         variety: ['치트키', '결국', '하고 싶은 말', '들켰', '실패', '폭로', '???', 'ㅋㅋ'],
+        court:   ['혐의', '증거', '유죄', '체포', '구속', '범행', '자백', '기소'],
+        guide:   ['보상', '히든', '플래그', '달성', '레벨업', '엔딩', '클리어', '획득'],
+        wiki:    ['사건', '논란', '최초', '대표적', '평가', '의의', '여파'],
     };
     const hits = (triggers[mode] || []).filter(k => text.includes(k)).length;
     const boosted = Math.min(100, base + hits * 18);
@@ -431,6 +486,9 @@ const FX_SETS = {
     docu:    { emojis: ['📹', '🔬', '🦒', '🐾', '🧬', '🌿', '🔭', '📋', '🦔', '🐧'] },
     sports:  { emojis: ['⚽', '🥅', '🏟️', '📣', '🏆', '🚩', '🥏', '🎽', '🏅', '📊'] },
     variety: { emojis: ['🎉', '✨', '🎊', '💥', '😂', '🤡', '💢', '❗', '🫣', '👀', '💀', '🙈'] },
+    court:   { emojis: ['⚖️', '🚨', '👮', '🔍', '📁', '🔒', '📜', '🚓', '🕵️', '⛓️'] },
+    guide:   { emojis: ['🎮', '🕹️', '🏆', '⭐', '💎', '🗝️', '📈', '🎯', '🔓', '👾'] },
+    wiki:    { emojis: ['📚', '📖', '🔖', '📐', '🏛️', '📰', '✍️', '🗂️', '🧾', '📌'] },
 };
 
 // 해설 내용에 맞는 이모지를 골라준다 (내용 인식)
@@ -609,6 +667,9 @@ function injectUI() {
                     <option value="docu"   ${settings.mode === 'docu'    ? 'selected' : ''}>🎬 다큐</option>
                     <option value="sports" ${settings.mode === 'sports'  ? 'selected' : ''}>🏟️ 중계</option>
                     <option value="variety"${settings.mode === 'variety' ? 'selected' : ''}>📺 예능</option>
+                    <option value="court"  ${settings.mode === 'court'   ? 'selected' : ''}>⚖️ 법정수사</option>
+                    <option value="guide"  ${settings.mode === 'guide'   ? 'selected' : ''}>🎮 공략집</option>
+                    <option value="wiki"   ${settings.mode === 'wiki'    ? 'selected' : ''}>📚 위키</option>
                 </select>
                 <select class="obs-select obs-context-select" title="맥락 범위">
                     <option value="current" ${settings.context === 'current'  ? 'selected' : ''}>현재</option>
@@ -855,6 +916,9 @@ function injectSettings() {
                 <option value="docu"    ${settings.mode === 'docu'    ? 'selected' : ''}>🎬 다큐멘터리</option>
                 <option value="sports"  ${settings.mode === 'sports'  ? 'selected' : ''}>🏟️ 스포츠 중계</option>
                 <option value="variety" ${settings.mode === 'variety' ? 'selected' : ''}>📺 예능</option>
+                <option value="court"   ${settings.mode === 'court'   ? 'selected' : ''}>⚖️ 법정수사</option>
+                <option value="guide"   ${settings.mode === 'guide'   ? 'selected' : ''}>🎮 공략집</option>
+                <option value="wiki"    ${settings.mode === 'wiki'    ? 'selected' : ''}>📚 위키</option>
             </select>
 
             <label for="hotmic-context" style="margin-top:10px;">맥락 범위</label>
