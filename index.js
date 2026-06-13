@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.15.2 ───
+// ─── 🎤 Hot Mic v2.15.3 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.15.2';
+const HOTMIC_VERSION = '2.15.3';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -1199,6 +1199,9 @@ function applyTheme() {
             el.style.setProperty('background', bgSolid, 'important');
             el.style.setProperty('opacity', a, 'important');
         });
+        // 슬라이더 트랙: 배경만 알파로 흐리고(헤더와 톤 맞춤), 핸들·선은 자식이라 또렷 유지
+        const track = panel.querySelector('.obs-opacity-track');
+        if (track) track.style.setProperty('background', `rgba(${t.bg},${a})`, 'important');
     }
     // 텍스트색
     bar.querySelectorAll('.obs-ticker-preview, .obs-block-content').forEach(el => {
