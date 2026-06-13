@@ -438,11 +438,13 @@
     inset: 0;
     z-index: 2147483646;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     background: rgba(0,0,0,0.55);
     backdrop-filter: blur(3px);
     padding: 20px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 #observer-settings-modal.obs-hidden { display: none; }
@@ -450,8 +452,7 @@
 .obs-settings-box {
     width: 100%;
     max-width: 380px;
-    max-height: 80vh;
-    overflow-y: auto;
+    margin: 0 auto;
     background: rgba(14,14,14,0.98);
     border: 1px solid rgba(255,60,60,0.3);
     border-radius: 14px;
@@ -470,9 +471,7 @@
     color: #ff3c3c;
     font-family: 'Courier New', monospace;
     letter-spacing: 0.05em;
-    position: sticky;
-    top: 0;
-    background: rgba(14,14,14,0.98);
+    border-radius: 14px 14px 0 0;
 }
 
 .obs-settings-close {
