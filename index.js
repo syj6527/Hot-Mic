@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.6.5-debug ───
+// ─── 🎤 Hot Mic v1.7.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS = {
     scrollSpeed: 40,          // px/sec
     fullscreen: false,        // 전체 펼침 상태
     fxFrequency: 30,          // 마스코트 애니메이션 등장 확률 (%)
-    debug: true,              // 화면 디버그 배너 (모바일 진단용, 문제 해결 후 끄기)
+    debug: false,             // 화면 디버그 배너 (모바일 진단용, 필요시 설정에서 켜기)
 };
 
 function getSettings() {
@@ -100,6 +100,13 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 - 그 간극이 바로 웃음 포인트입니다. 예: 시트상 소심한 캐릭터가 속으로는 음침하게 계산하고 있다거나, 무심한 척하지만 시트의 집착 성향이 새어나온다거나.
 - 단, 이면은 시트와 대화에서 '실제로 뒷받침되는' 것이어야 합니다. 캐릭터 성격에 없는 걸 날조하면 안 됩니다. 베이스는 항상 캐릭터 시트 + 실제 대화입니다.
 - 표면과 이면이 일치하는(솔직한) 캐릭터라면 억지로 반전을 만들지 말고, 그 솔직함 자체를 해설하세요.
+
+[데드팬(deadpan) 유머 원칙 — 가장 중요한 웃음 기법]
+- 절대 과장하거나 흥분해서 설명하지 마세요. 가장 어이없는 사실을 가장 건조하고 무덤덤하게 툭 던질 때 제일 웃깁니다.
+- 감정 단어("정말 웃기게도", "충격적으로")를 쓰지 말고, 사실만 무미건조하게 나열해서 독자가 알아서 웃게 하세요.
+- 짧게 끊으세요. 긴 설명보다 한 줄 펀치라인이 강합니다. 예: "본인은 다정하다고 생각함." / "근거 없음."
+- 캐릭터의 진지함과 해설의 무심함의 낙차가 클수록 좋습니다. 캐릭터가 목숨 걸고 진지할 때 해설은 날씨 얘기하듯.
+- 캐릭터 성격(시트)의 디테일을 콕 집어 건조하게 들이대세요. 막연한 평가가 아니라 그 캐릭터만의 구체적 모순을 짚어야 성격 반영이 됩니다.
 
 ${contextNote}${langNote}
 
@@ -332,30 +339,59 @@ function maybePlayFx(data) {
 
     if (Math.random() * 100 >= boosted) return; // 확률 통과 못하면 끝
 
-    playFx(mode);
+    playFx(mode, text);
 }
 
+// 모드별 기본 이모지 풀 (다양하게)
 const FX_SETS = {
-    docu:    { emojis: ['📹', '🔬', '🦒', '🐾'], anim: 'fx-pan' },
-    sports:  { emojis: ['⚽', '🥅', '🏟️', '📣'], anim: 'fx-dribble' },
-    variety: { emojis: ['🎉', '✨', '🎊', '💥'], anim: 'fx-pop' },
+    docu:    { emojis: ['📹', '🔬', '🦒', '🐾', '🧬', '🌿', '🔭', '📋', '🦔', '🐧'], anim: 'fx-pan' },
+    sports:  { emojis: ['⚽', '🥅', '🏟️', '📣', '🏆', '🚩', '🥏', '🎽', '🏅', '📊'], anim: 'fx-dribble' },
+    variety: { emojis: ['🎉', '✨', '🎊', '💥', '😂', '🤡', '💢', '❗', '🫣', '👀', '💀', '🙈'], anim: 'fx-pop' },
 };
 
-function playFx(mode) {
+// 해설 내용에 맞는 이모지를 골라준다 (내용 인식)
+const FX_KEYWORDS = [
+    // [정규식, 이모지들]
+    [/사랑|좋아|설레|두근|애정|키스|연인|심쿵/, ['💗', '💓', '😳', '🫶', '💘']],
+    [/화|분노|짜증|빡|열받|폭발|성질/, ['💢', '😡', '🔥', '💥']],
+    [/거짓|뻥|구라|시치미|들켰|발뺌/, ['🤥', '👃', '🚨', '❌']],
+    [/질투|샘|시기/, ['😤', '🍋', '👿']],
+    [/슬프|눈물|울|우울|상처/, ['😢', '💧', '🥲']],
+    [/돈|비싼|가격|결제|플렉스|쇼핑/, ['💸', '💰', '🤑']],
+    [/먹|밥|음식|배고|요리|식사/, ['🍚', '🍳', '🥢', '😋']],
+    [/술|취|맥주|소주/, ['🍺', '🍻', '🥴']],
+    [/잠|졸|피곤|침대|자고/, ['😴', '💤', '🛏️']],
+    [/무서|공포|섬뜩|소름|음침/, ['😨', '🫥', '🕷️', '🌑']],
+    [/완벽|소유|집착|독점|내 거/, ['🔒', '👑', '🩸', '🫦']],
+    [/근육|운동|힘|강한|싸움/, ['💪', '🥊', '⚡']],
+];
+
+function pickEmojis(mode, text) {
+    // 내용 키워드 매칭되면 그 이모지 우선
+    if (text) {
+        for (const [re, emojis] of FX_KEYWORDS) {
+            if (re.test(text)) return emojis;
+        }
+    }
+    return FX_SETS[mode]?.emojis || FX_SETS.variety.emojis;
+}
+
+function playFx(mode, text) {
     const bar = document.getElementById('observer-bar');
     if (!bar) return;
     // bar는 overflow 제한이 없어 폭죽이 잘리지 않음
     const host = bar;
 
     const set = FX_SETS[mode] || FX_SETS.variety;
+    const pool = pickEmojis(mode, text);
 
     // 예능 폭죽은 여러 개 흩뿌림, 나머지는 1~2개
-    const count = mode === 'variety' ? 5 : (mode === 'sports' ? 1 : 2);
+    const count = mode === 'variety' ? 5 : (mode === 'sports' ? 2 : 2);
 
     for (let i = 0; i < count; i++) {
         const el = document.createElement('span');
         el.className = `hotmic-fx ${set.anim}`;
-        el.textContent = set.emojis[Math.floor(Math.random() * set.emojis.length)];
+        el.textContent = pool[Math.floor(Math.random() * pool.length)];
         // 랜덤 시작 위치/지연
         el.style.left = (10 + Math.random() * 80) + '%';
         el.style.animationDelay = (Math.random() * 0.25) + 's';
@@ -492,7 +528,7 @@ function injectUI() {
 
     <!-- 자막바 -->
     <div id="observer-ticker">
-        <span class="obs-ticker-cam">🎤</span>
+        <span class="obs-ticker-recdot"></span>
         <span class="obs-ticker-badge">LIVE</span>
         <span class="obs-ticker-preview">녹음 중...</span>
         <div class="obs-ticker-actions">
@@ -683,6 +719,34 @@ function bindEvents() {
         });
     }
 
+    // 🥚 이스터에그: 패널 제목 "🎤 HOT MIC"를 1.5초 안에 5번 탭하면 디버그 모드 토글
+    const title = bar.querySelector('.obs-panel-title');
+    if (title) {
+        let taps = [];
+        title.style.cursor = 'pointer';
+        title.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const now = Date.now();
+            taps = taps.filter(t => now - t < 1500);
+            taps.push(now);
+            if (taps.length >= 5) {
+                taps = [];
+                const s = getSettings();
+                s.debug = !s.debug;
+                saveSettingsDebounced();
+                // 짧은 피드백
+                const old = title.textContent;
+                title.textContent = s.debug ? '🐞 DEBUG ON' : '🎤 HOT MIC';
+                if (s.debug) {
+                    hotmicDebug('🐞 디버그 모드 ON (새로고침 시 진단 표시)');
+                } else {
+                    document.getElementById('hotmic-debug')?.remove();
+                }
+                setTimeout(() => { title.textContent = '🎤 HOT MIC'; }, 1500);
+            }
+        });
+    }
+
     // 모드 변경
     bar.querySelector('.obs-mode-select')?.addEventListener('change', (e) => {
         getSettings().mode = e.target.value;
@@ -768,12 +832,6 @@ function injectSettings() {
             <label for="hotmic-fxfreq" style="margin-top:12px;">애니메이션 빈도: <span id="hotmic-fx-val">${settings.fxFrequency}</span>%</label>
             <input type="range" id="hotmic-fxfreq" min="0" max="100" step="10" value="${settings.fxFrequency}" style="width:100%;">
             <small class="notes">해설이 뜰 때 모드별 마스코트(🎉 예능 / ⚽ 중계 / 📹 다큐)가 등장할 확률. 0%면 끔. 상황이 격할수록 확률이 올라갑니다.</small>
-
-            <label class="checkbox_label" style="margin-top:12px;">
-                <input type="checkbox" id="hotmic-debug" ${settings.debug ? 'checked' : ''}>
-                <span>🐞 디버그 배너 (모바일에서 안 뜰 때 진단용)</span>
-            </label>
-            <small class="notes">켜면 새로고침 시 화면 상단에 진단 정보가 표시됩니다. 문제 해결되면 끄세요.</small>
         </div>
     </div>
 </div>`;
@@ -795,7 +853,6 @@ function injectSettings() {
     bind('hotmic-mode-s', 'mode');
     bind('hotmic-context-s', 'context');
     bind('hotmic-autoscroll', 'autoscroll');
-    bind('hotmic-debug', 'debug');
 
     // 자동스크롤 체크박스 → 즉시 반영
     document.getElementById('hotmic-autoscroll')?.addEventListener('change', () => {
