@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.1.0 ───
+// ─── 🎤 Hot Mic v1.2.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -15,6 +15,9 @@ const DEFAULT_SETTINGS = {
     context: 'recent5',       // 'current' | 'recent5' | 'all'
     profile: '',              // 연결 프로필 이름 ('' = 현재 연결 사용)
     language: 'ko',           // 'ko' | 'en'
+    autoscroll: true,         // 자동 스크롤 on/off
+    scrollSpeed: 40,          // px/sec
+    fullscreen: false,        // 전체 펼침 상태
 };
 
 function getSettings() {
@@ -88,6 +91,13 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
     const systemPrompt = `${modePrompts[settings.mode]}
 
 당신은 관찰자입니다. 캐릭터는 당신의 존재를 모릅니다. 당신의 해설은 캐릭터에게 보이지 않으며, 다음 대화에 영향을 주지 않습니다.
+
+[가장 중요한 원칙 — 속마음/인터뷰 작성 시]
+속마음 유출과 인터뷰는 반드시 '캐릭터 정보(시트)'와 '실제 대화 내용'에 근거해야 합니다. 즉흥적으로 지어내지 마세요.
+- 캐릭터가 겉으로 한 말/행동(표면)과, 시트의 성격·대화 맥락에서 추론되는 진짜 속내(이면)의 간극을 포착하세요.
+- 그 간극이 바로 웃음 포인트입니다. 예: 시트상 소심한 캐릭터가 속으로는 음침하게 계산하고 있다거나, 무심한 척하지만 시트의 집착 성향이 새어나온다거나.
+- 단, 이면은 시트와 대화에서 '실제로 뒷받침되는' 것이어야 합니다. 캐릭터 성격에 없는 걸 날조하면 안 됩니다. 베이스는 항상 캐릭터 시트 + 실제 대화입니다.
+- 표면과 이면이 일치하는(솔직한) 캐릭터라면 억지로 반전을 만들지 말고, 그 솔직함 자체를 해설하세요.
 
 ${contextNote}${langNote}
 
@@ -186,15 +196,18 @@ function collectData() {
     const ctx = getContext();
     const settings = getSettings();
 
-    // 캐릭터 정보
+    // 캐릭터 정보 (시트 전체를 충실히 — 인터뷰/속마음의 근거)
     let charData = '(캐릭터 정보 없음)';
     if (ctx.characters && ctx.characterId !== undefined) {
         const char = ctx.characters[ctx.characterId];
         if (char) {
+            const cc = char.data || {}; // V2 카드 필드
             charData = [
-                `이름: ${char.name || '?'}`,
-                char.description ? `설명: ${char.description.slice(0, 400)}` : '',
-                char.personality ? `성격: ${char.personality.slice(0, 200)}` : '',
+                `이름: ${char.name || cc.name || '?'}`,
+                (char.description || cc.description) ? `설명:\n${(char.description || cc.description).slice(0, 1500)}` : '',
+                (char.personality || cc.personality) ? `성격: ${(char.personality || cc.personality).slice(0, 600)}` : '',
+                (char.scenario || cc.scenario) ? `시나리오: ${(char.scenario || cc.scenario).slice(0, 400)}` : '',
+                (cc.mes_example || char.mes_example) ? `예시 대화(말투/성격 참고):\n${(cc.mes_example || char.mes_example).slice(0, 600)}` : '',
             ].filter(Boolean).join('\n');
         }
     }
@@ -225,7 +238,7 @@ function collectData() {
 
     history = contextMsgs.map(m => {
         const who = m.is_user ? '유저' : (ctx.characters?.[ctx.characterId]?.name || 'AI');
-        return `${who}: ${(m.mes || '').slice(0, 300)}`;
+        return `${who}: ${(m.mes || '').slice(0, 600)}`;
     }).join('\n\n');
 
     return { charData, history, lastMessage };
@@ -285,6 +298,53 @@ function renderCommentary(data) {
     body.innerHTML = blocks.length
         ? blocks.join('')
         : '<div class="obs-empty">해설 없음</div>';
+
+    // 새 해설 렌더되면 맨 위로 + 자동스크롤 재시작
+    body.scrollTop = 0;
+    if (getSettings().autoscroll) startAutoScroll();
+}
+
+// ─── 자동 스크롤 엔진 ───
+let _scrollRAF = null;
+let _scrollAccum = 0;
+let _lastTs = 0;
+
+function startAutoScroll() {
+    stopAutoScroll();
+    const body = document.querySelector('.obs-panel-body');
+    if (!body) return;
+    // 스크롤할 내용이 없으면 안 함
+    if (body.scrollHeight <= body.clientHeight + 2) return;
+
+    _lastTs = performance.now();
+    _scrollAccum = body.scrollTop;
+
+    const step = (ts) => {
+        const speed = getSettings().scrollSpeed || 40; // px/sec
+        const dt = (ts - _lastTs) / 1000;
+        _lastTs = ts;
+        _scrollAccum += speed * dt;
+        body.scrollTop = _scrollAccum;
+
+        // 끝에 도달하면 잠깐 멈췄다가 위로 (루프)
+        if (body.scrollTop + body.clientHeight >= body.scrollHeight - 1) {
+            stopAutoScroll();
+            setTimeout(() => {
+                const b = document.querySelector('.obs-panel-body');
+                if (b && getSettings().autoscroll) {
+                    b.scrollTop = 0;
+                    startAutoScroll();
+                }
+            }, 2500);
+            return;
+        }
+        _scrollRAF = requestAnimationFrame(step);
+    };
+    _scrollRAF = requestAnimationFrame(step);
+}
+
+function stopAutoScroll() {
+    if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; }
 }
 
 function updateTickerPreview(preview) {
@@ -393,7 +453,9 @@ function injectUI() {
                     <option value="recent5" ${settings.context === 'recent5'  ? 'selected' : ''}>최근 5턴</option>
                     <option value="all"     ${settings.context === 'all'      ? 'selected' : ''}>전체</option>
                 </select>
+                <button class="obs-btn-small obs-autoscroll" title="자동 스크롤 켜기/끄기">⤓</button>
                 <button class="obs-btn-small obs-regen" title="재생성">↺</button>
+                <button class="obs-btn-small obs-fullscreen" title="전체 펼치기">⛶</button>
                 <button class="obs-btn-small obs-collapse" title="접기">▼</button>
                 <button class="obs-btn-small obs-minimize" title="최소화">✕</button>
             </div>
@@ -406,6 +468,10 @@ function injectUI() {
 </div>`;
 
     document.body.insertAdjacentHTML('beforeend', html);
+    if (settings.fullscreen) {
+        document.getElementById('observer-panel')?.classList.add('obs-fs');
+        document.getElementById('observer-bar')?.classList.add('obs-fs-bar');
+    }
     bindEvents();
 }
 
@@ -440,6 +506,51 @@ function bindEvents() {
     bar.querySelectorAll('.obs-regen').forEach(btn =>
         btn.addEventListener('click', (e) => { e.stopPropagation(); runGeneration(); })
     );
+
+    // 전체 펼치기 토글
+    bar.querySelectorAll('.obs-fullscreen').forEach(btn =>
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const panel = document.getElementById('observer-panel');
+            const on = panel.classList.toggle('obs-fs');
+            document.getElementById('observer-bar')?.classList.toggle('obs-fs-bar', on);
+            getSettings().fullscreen = on;
+            saveSettingsDebounced();
+            btn.title = on ? '원래대로' : '전체 펼치기';
+        })
+    );
+
+    // 자동 스크롤 토글
+    bar.querySelectorAll('.obs-autoscroll').forEach(btn => {
+        const refresh = () => {
+            const on = getSettings().autoscroll;
+            btn.style.opacity = on ? '1' : '0.35';
+            btn.title = on ? '자동 스크롤: 켜짐 (클릭해 끄기)' : '자동 스크롤: 꺼짐 (클릭해 켜기)';
+        };
+        refresh();
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const s = getSettings();
+            s.autoscroll = !s.autoscroll;
+            saveSettingsDebounced();
+            refresh();
+            syncControls();
+            if (s.autoscroll) startAutoScroll(); else stopAutoScroll();
+        });
+    });
+
+    // 본문에 마우스 올리면 자동스크롤 일시정지
+    const body = bar.querySelector('.obs-panel-body');
+    if (body) {
+        body.addEventListener('mouseenter', stopAutoScroll);
+        body.addEventListener('mouseleave', () => { if (getSettings().autoscroll) startAutoScroll(); });
+        // 사용자가 직접 스크롤하면 잠깐 멈춤
+        body.addEventListener('wheel', () => {
+            stopAutoScroll();
+            clearTimeout(body._resumeTimer);
+            body._resumeTimer = setTimeout(() => { if (getSettings().autoscroll) startAutoScroll(); }, 2000);
+        });
+    }
 
     // 모드 변경
     bar.querySelector('.obs-mode-select')?.addEventListener('change', (e) => {
@@ -508,6 +619,14 @@ function injectSettings() {
                 <option value="recent5" ${settings.context === 'recent5' ? 'selected' : ''}>최근 5턴</option>
                 <option value="all"     ${settings.context === 'all'     ? 'selected' : ''}>전체 대화</option>
             </select>
+
+            <label class="checkbox_label" style="margin-top:12px;">
+                <input type="checkbox" id="hotmic-autoscroll" ${settings.autoscroll ? 'checked' : ''}>
+                <span>자막 자동 스크롤</span>
+            </label>
+            <label for="hotmic-scrollspeed" style="margin-top:6px;">스크롤 속도: <span id="hotmic-speed-val">${settings.scrollSpeed}</span> px/s</label>
+            <input type="range" id="hotmic-scrollspeed" min="10" max="120" step="5" value="${settings.scrollSpeed}" style="width:100%;">
+            <small class="notes">패널에 마우스를 올리거나 직접 스크롤하면 잠시 멈춥니다.</small>
         </div>
     </div>
 </div>`;
@@ -528,6 +647,23 @@ function injectSettings() {
     bind('hotmic-language', 'language');
     bind('hotmic-mode-s', 'mode');
     bind('hotmic-context-s', 'context');
+    bind('hotmic-autoscroll', 'autoscroll');
+
+    // 자동스크롤 체크박스 → 즉시 반영
+    document.getElementById('hotmic-autoscroll')?.addEventListener('change', () => {
+        if (getSettings().autoscroll) startAutoScroll(); else stopAutoScroll();
+        syncControls();
+    });
+
+    // 스크롤 속도 슬라이더
+    const speedInput = document.getElementById('hotmic-scrollspeed');
+    speedInput?.addEventListener('input', (e) => {
+        const v = parseInt(e.target.value, 10);
+        getSettings().scrollSpeed = v;
+        const lbl = document.getElementById('hotmic-speed-val');
+        if (lbl) lbl.textContent = v;
+        saveSettingsDebounced();
+    });
 
     // 활성화 토글 시 자막바 표시/숨김
     document.getElementById('hotmic-enabled')?.addEventListener('change', applyEnabledState);
@@ -552,6 +688,12 @@ function syncControls() {
     set('#hotmic-language', s.language);
     const en = document.getElementById('hotmic-enabled');
     if (en) en.checked = s.enabled;
+    const as = document.getElementById('hotmic-autoscroll');
+    if (as) as.checked = s.autoscroll;
+    // 자막바 자동스크롤 버튼 투명도
+    document.querySelectorAll('.obs-autoscroll').forEach(b => {
+        b.style.opacity = s.autoscroll ? '1' : '0.35';
+    });
 }
 
 // ─── 이벤트 리스너 ───

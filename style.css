@@ -188,6 +188,24 @@
     max-height: 55vh;
     display: flex;
     flex-direction: column;
+    transition: max-height 0.3s cubic-bezier(0.16,1,0.3,1), max-width 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+
+/* 전체 펼치기 */
+#observer-bar.obs-fs-bar.state-panel {
+    bottom: 0;
+    top: 0;
+    align-items: center;
+    padding: 24px 12px;
+}
+
+#observer-panel.obs-fs {
+    max-height: 88vh;
+    max-width: 860px;
+}
+
+#observer-panel.obs-fs .obs-panel-body {
+    font-size: 14px;
 }
 
 .obs-panel-header {
