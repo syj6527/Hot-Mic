@@ -554,7 +554,7 @@
     font-size: 12.5px;
 }
 
-/* 🔬 SCP — 모노 보고서 + 상단 경고선 */
+/* 🗂️ 기밀문서 — 모노 보고서 + 상단 경고선 */
 .obs-skin-scp .obs-block-content {
     font-family: 'Courier New', monospace !important;
     font-size: 12.5px;
@@ -637,9 +637,9 @@
     margin-bottom: 6px;
 }
 
-/* 🔬 SCP — 문서 상단 분류 도장 느낌 */
+/* 🗂️ 기밀문서 — 문서 상단 분류 도장 */
 .obs-skin-scp .type-director .obs-block-content::before {
-    content: '⚠ CLASSIFIED — 재단 내부 문서';
+    content: '⚠ CLASSIFIED — 기밀 등급 문서';
     display: block;
     font-family: 'Courier New', monospace;
     font-size: 9px;
