@@ -481,3 +481,95 @@
 }
 
 
+
+/* ─────────────────────────────────────────────
+   모드별 시각 스킨 (틀만 변형, 색은 테마 변수가 관장)
+   변수: --hm-accent --hm-text --hm-panel --hm-border --hm-soft --hm-line
+   ───────────────────────────────────────────── */
+
+/* 📚 위키 — 세리프 + 좌측 인용선 */
+.obs-skin-wiki .obs-block-content {
+    font-family: 'Georgia', 'Nanum Myeongjo', serif !important;
+    line-height: 1.7;
+    padding-left: 10px;
+    border-left: 2px solid var(--hm-line, rgba(128,128,128,0.3));
+}
+
+/* 📰 속보 — 신문 세리프 + 헤드라인 강조 + 워터마크 */
+.obs-skin-news .obs-block-content {
+    font-family: 'Georgia', 'Nanum Myeongjo', serif !important;
+    line-height: 1.65;
+}
+.obs-skin-news .type-director .obs-block-content {
+    font-weight: 700;
+    font-size: 14px;
+    border-top: 2px solid var(--hm-accent, #999);
+    border-bottom: 1px solid var(--hm-line, rgba(128,128,128,0.3));
+    padding: 8px 0;
+}
+.obs-skin-news .type-director .obs-block-content::after {
+    content: 'ⓒ HOT MIC NEWS';
+    display: block;
+    margin-top: 8px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    opacity: 0.5;
+    font-weight: 400;
+}
+
+/* 🛕 성전 — 가운데 정렬 + 이탤릭 세리프 + 넓은 행간 */
+.obs-skin-bible .obs-block-content {
+    font-family: 'Georgia', 'Nanum Myeongjo', serif !important;
+    text-align: center;
+    line-height: 1.9;
+    padding: 4px 14px;
+    font-style: italic;
+}
+.obs-skin-bible .obs-block-label { text-align: center; }
+
+/* 🗣️ 커뮤니티 — 말풍선 박스 */
+.obs-skin-community .obs-block-content {
+    background: var(--hm-soft, rgba(128,128,128,0.1)) !important;
+    border: 1px solid var(--hm-line, rgba(128,128,128,0.25));
+    border-radius: 14px;
+    padding: 10px 13px;
+    line-height: 1.6;
+}
+
+/* ⚖️ 법정수사 — 모노 + 좌측 이중선 (서류) */
+.obs-skin-court .type-director .obs-block-content {
+    font-family: 'Courier New', monospace !important;
+    border-left: 3px double var(--hm-line, rgba(128,128,128,0.4));
+    padding-left: 10px;
+    font-size: 12.5px;
+}
+
+/* 🎮 공략집 — 점선 카드 박스 */
+.obs-skin-guide .type-director .obs-block-content {
+    background: var(--hm-soft, rgba(128,128,128,0.08)) !important;
+    border: 1px dashed var(--hm-line, rgba(128,128,128,0.4));
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'Courier New', monospace !important;
+    font-size: 12.5px;
+}
+
+/* 🔬 SCP — 모노 보고서 + 상단 경고선 */
+.obs-skin-scp .obs-block-content {
+    font-family: 'Courier New', monospace !important;
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+.obs-skin-scp .type-director .obs-block-content {
+    border: 1px solid var(--hm-line, rgba(128,128,128,0.4));
+    border-top: 3px solid var(--hm-accent, #b48c00);
+    padding: 10px 12px;
+    background: var(--hm-soft, rgba(128,128,128,0.06)) !important;
+}
+
+/* 🎬 다큐 — 세리프 + 넉넉한 행간 (내레이션) */
+.obs-skin-docu .type-director .obs-block-content {
+    font-family: 'Georgia', 'Nanum Myeongjo', serif !important;
+    line-height: 1.8;
+    font-style: italic;
+}
