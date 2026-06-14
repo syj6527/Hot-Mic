@@ -573,3 +573,79 @@
     line-height: 1.8;
     font-style: italic;
 }
+/* ─────────────────────────────────────────────
+   레이아웃 흉내 — HTML 구조는 그대로, CSS 장식만 (회귀 위험 없음)
+   director 블록에 매체별 메타줄을 ::before/::after로 얹는다
+   ───────────────────────────────────────────── */
+
+/* 📰 속보 — 헤드라인 위 신문 마스트헤드 */
+.obs-skin-news .type-director { position: relative; }
+.obs-skin-news .type-director .obs-block-label {
+    display: none; /* 라벨 숨기고 마스트헤드로 대체 */
+}
+.obs-skin-news .type-director::before {
+    content: 'HOT MIC NEWS  ·  단독 보도';
+    display: block;
+    font-family: 'Georgia', serif;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--hm-accent, #999);
+    border-bottom: 2px solid var(--hm-accent, #999);
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+/* 🗣️ 커뮤니티(트위터형) — director 위 프로필/핸들 줄, 아래 반응 아이콘 줄 */
+.obs-skin-community .type-director .obs-block-content {
+    position: relative;
+    margin-top: 22px;
+    margin-bottom: 20px;
+}
+.obs-skin-community .type-director .obs-block-content::before {
+    content: '🎤  HOT MIC  ·  @hotmic_live  ·  방금';
+    position: absolute;
+    top: -20px;
+    left: 2px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--hm-text, #888);
+    opacity: 0.85;
+    white-space: nowrap;
+}
+.obs-skin-community .type-director .obs-block-content::after {
+    content: '♡   ⟲   ↗   🔖';
+    position: absolute;
+    bottom: -18px;
+    left: 2px;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    opacity: 0.55;
+}
+
+/* 🎮 공략집 — 카드 상단 'QUEST' 태그 */
+.obs-skin-guide .type-director { position: relative; }
+.obs-skin-guide .type-director .obs-block-content::before {
+    content: '▸ EVENT';
+    display: inline-block;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--hm-accent, #999);
+    margin-bottom: 6px;
+}
+
+/* 🔬 SCP — 문서 상단 분류 도장 느낌 */
+.obs-skin-scp .type-director .obs-block-content::before {
+    content: '⚠ CLASSIFIED — 재단 내부 문서';
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--hm-accent, #b48c00);
+    margin-bottom: 8px;
+    opacity: 0.85;
+}
