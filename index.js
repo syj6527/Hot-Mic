@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.17.0 ───
+// ─── 🎤 Hot Mic v2.19.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.17.0';
+const HOTMIC_VERSION = '2.19.0';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -107,6 +107,16 @@ const MODE_SUBSTYLES = {
         '【뉴스 속보 st】 앵커·기자 보도. "【속보】", "방금 들어온 소식입니다", "현장 연결하겠습니다", "관계자에 따르면", "귀추가 주목됩니다". 헤드라인→기사→코멘트. 긴급하고 격식 있는 톤.',
         '【연예부 기자 st】 찌라시·가십 기사. "[단독]", "열애설 포착?", "한 측근은…", "충격", "네티즌 갑론을박", "양측 입장 들어보니". 자극적 헤드라인, 추측성 보도, 물음표 남발.',
         '【스포츠 뉴스 st】 이적·기록 보도. "공식 발표", "구단 관계자", "역대 최고 기록 경신", "MVP 유력", "몸값 수직 상승", "팬들 환호". 스포츠 신문 1면 톤, 통계·수치 강조.',
+    ],
+    bible: [
+        '【창세기 st】 천지창조체. "태초에 ~이 있었으니", "보시기에 좋았더라", "빛이 있으라". 사소한 일을 세상의 시작처럼 장엄하게.',
+        '【복음서 st】 예수 행적체. "이르시되", "비유로 말씀하시니", "무리가 놀라더라". 인물을 선지자처럼, 말 한마디를 가르침처럼.',
+        '【잠언·계명 st】 교훈·율법체. "무릇 ~하는 자는 ~할지니라", "지혜로운 자는", "~하지 말지어다". 사소한 행동을 거룩한 계명으로.',
+    ],
+    community: [
+        '【트위터(X) st】 인용RT 타래·멘션 싸움. "이거 실화냐", "박제함", "RT 5만", "#○○", 비꼬는 답멘. 짧고 빠른 트윗체, 캡처 박제 드립.',
+        '【인스타 st】 감성 캡션 + 해시태그 도배. "📍위치태그", "#일상 #데일리 #남친스타그램 #럽스타", 댓글 반응("언니 누구야ㅠ", "여기 어디예요?"). 인플루언서 톤.',
+        '【아이돌 팬커뮤 st】 "○○야 결혼하자", "이 구역 미친 떡밥", "내 새끼 잘한다", 최애 영업·실드·분탕, "탈덕 실패", "심장 나감". 팬덤 화력·드립.',
     ],
 };
 
@@ -237,6 +247,40 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 - inner: "【단독】 Caesar 씨 측근 '본인은 다정한 거라 주장하나, 실상은 독점욕'이라고 귀띔."
 - fact: "확인 결과, 배달 음식 주문 사실을 은폐한 정황 포착. '암컷의 정성'을 명분으로 내세웠으나 신빙성 낮음."
 - interview: "[현장 인터뷰] 기자: 왜 손을 떼지 않으십니까? / Caesar: ...무거워서요. / (옆에서) Rin: 거짓말이에요."`,
+
+        bible: `당신은 성경 필사자입니다. 캐릭터의 사소한 행동을 구약·신약 성경 문체로 장엄하게 기록합니다. 별것 아닌 일을 천지창조나 복음서 사건처럼 다뤄 그 괴리로 웃깁니다.
+
+[톤 핵심]
+- 성경 문체: "태초에 ~이 있었으니", "이르시되", "~하더라", "보라", "그리하여 ~하니라", "이는 ~함이라".
+- 장절 표기를 가짜로: "[창세기 3:7]", "[시저복음 2:14]", "[원룸기 1:1]" 같은 식으로 장난스럽게.
+- 거창한 선언 + 사소한 내용의 낙차: "보라, 그가 젓가락을 내려놓으매, 식탁에 정적이 임하였더라."
+- 잠언/계명 형식도: "무릇 다리가 풀린 자는 의자에 앉을지니라."
+- 다인원이면 "또한 린이 이르되…" 식으로 인물별 구절.
+
+[구조 활용 — director 필드를 성경 구절체 본문으로]
+- 예: "[원룸기 4:30] 태초에 시저가 린의 부엌에 임하시니, 그 거구가 좁은 방을 가득 채웠더라. 시저가 이르시되 '앉아, 쓰러지기 전에.' 하시니, 이는 그가 만든 결과를 스스로 거두려 함이라. 보라, 사과는 없었으나 그 손은 떠나지 아니하였더라."
+
+[예시 — 톤 참고용]
+- inner: "[시저서 1:3] 그가 속으로 이르되, '이는 배려가 아니요, 다만 곁에 두고자 함이라' 하더라."
+- fact: "기록에 따르면 그가 '햄스트링이 상하였다' 하였으나, 이는 스스로 지은 바요 하늘의 뜻이 아니더라."
+- interview: "묻되 '어찌 손을 떼지 아니하느냐?' / 답하여 이르되 '무거운 까닭이라.' / 보라, 곁에서 린이 이르되 '거짓이로다.'"`,
+
+        community: `당신은 인터넷 커뮤니티 유저입니다. 캐릭터의 행동을 SNS·커뮤니티 반응처럼 해설합니다. 진지한 장면을 가볍고 시끄러운 인터넷 반응으로 받아쳐 웃깁니다. 세부 스타일(트위터/인스타/팬커뮤)에 맞춰 변주하세요.
+
+[톤 핵심]
+- 인터넷 말투·밈·줄임말. 실시간 반응체.
+- 트위터(X): 인용RT 타래, "이거 실화냐", "박제함", 비꼬는 멘션, 해시태그, "RT 5만".
+- 인스타: 감성 캡션 + 해시태그 도배(#일상 #데일리 #남친스타그램), 위치 태그(📍), 댓글 반응("언니 누구야ㅠ").
+- 아이돌 팬커뮤: "○○야 결혼하자", "이 구역 미친 떡밥", 최애 영업, 실드/분탕, "내 새끼 잘한다", "탈덕 못함".
+- 다인원이면 여러 유저/댓글 반응으로.
+
+[구조 활용 — director 필드를 커뮤 반응·타래로]
+- 예(트위터st): "speed) 헤일대 쿼터백 그 새끼 또 시작함 ㅋㅋㅋ 4년 관전한 사람한테 '내 몸 보러 온 거 아니냐' 시전 / 인용RT) 이게 맞냐곸ㅋㅋ #박제 / 답멘) 솔직히 팩트라서 더 웃김"
+
+[예시 — 톤 참고용]
+- inner: "(본인 마음의 소리) 어차피 내 몸 보러 온 거 다 앎ㅋ"
+- fact: "[팩트체크] 1. Rin 4년간 관전 ✅ 2. 룰 모름 ✅ 3. 근데 시저 등번호 옷은 입음 → 결론: 사람 보러 온 거 맞음ㅇㅇ"
+- interview: "Q) 손 왜 안 뗌? / A) 무거워서요^^ / (인용) 옆에서 린: 개거짓말 / A) 너 조용히 좀"`,
     };
 
     const contextNote = settings.context === 'current'
@@ -275,6 +319,8 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
     const subStyleNote = subStyle
         ? `\n\n[이번 해설의 세부 스타일 — 이 변주를 적용하세요]\n${subStyle}\n(위 모드의 큰 틀은 유지하되, 이 세부 스타일의 톤·어휘·연출로 변주하세요.)`
         : '';
+    // 서브스타일 짧은 라벨 추출 (예: "【실록·사관 st】..." → "실록·사관")
+    const subLabel = (subStyle.match(/【([^】]+)】/)?.[1] || '').replace(/\s*st\s*$/i, '').replace(/\s*\/.*$/, '').trim();
 
     const systemPrompt = `${modePrompts[settings.mode]}${subStyleNote}
 
@@ -398,7 +444,9 @@ ${chatHistory}
         ? clean.slice(firstBrace, lastBrace + 1)
         : clean;
 
-    return JSON.parse(jsonStr);
+    const parsed = JSON.parse(jsonStr);
+    parsed._subLabel = subLabel; // 서브스타일 라벨 (preview 표시용)
+    return parsed;
 }
 
 // ─── 데이터 수집 ───
@@ -500,6 +548,7 @@ function renderCommentary(data) {
         const dirLabel = {
             docu: '[ 관찰 ]', sports: '[ 중계 ]', variety: '[ 제작진 ]',
             court: '[ 사건 파일 ]', guide: '[ 이벤트 ]', wiki: '[ 개요 ]', news: '[ 속보 ]',
+            bible: '[ 말씀 ]', community: '[ 반응 ]',
         }[getSettings().mode] || '[ 제작진 ]';
         blocks.push(`
             <div class="obs-block type-director">
@@ -556,6 +605,8 @@ function pickPreviewEmojis(data) {
         guide:   ['보상', '히든', '플래그', '달성', '레벨업', '엔딩', '클리어', '획득'],
         wiki:    ['사건', '논란', '최초', '대표적', '평가', '의의', '여파'],
         news:    ['속보', '단독', '충격', '비상', '파장', '논란', '확인', '포착'],
+        bible:   ['태초', '보라', '이르시되', '하더라', '하니라', '계명'],
+        community: ['실화', '박제', 'ㅋㅋ', '레전드', '떡밥', '미쳤다', '결혼하자'],
     };
     const hits = (triggers[mode] || []).filter(k => text.includes(k)).length;
     const boosted = Math.min(100, base + hits * 18);
@@ -579,6 +630,8 @@ const FX_SETS = {
     guide:   { emojis: ['🎮', '🕹️', '🏆', '⭐', '💎', '🗝️', '📈', '🎯', '🔓', '👾'] },
     wiki:    { emojis: ['📚', '📖', '🔖', '📐', '🏛️', '📰', '✍️', '🗂️', '🧾', '📌'] },
     news:    { emojis: ['📰', '🚨', '📺', '🎙️', '📡', '❗', '🗞️', '📢', '⚡', '🔴'] },
+    bible:   { emojis: ['📖', '✝️', '🕊️', '😇', '🙏', '⛪', '📜', '✨', '🌟', '👼'] },
+    community: { emojis: ['💬', '🔥', '📱', '😂', '👀', '💀', '🗣️', '❤️', '📸', '⭐'] },
 };
 
 // 해설 내용에 맞는 이모지를 골라준다 (내용 인식)
@@ -709,7 +762,8 @@ async function runGeneration() {
         }
         currentCommentary = commentary;
         const emo = pickPreviewEmojis(commentary);
-        const previewText = (emo ? emo + ' ' : '') + (commentary.preview || '해설 생성 완료');
+        const label = commentary._subLabel ? `[${commentary._subLabel}] ` : '';
+        const previewText = (emo ? emo + ' ' : '') + label + (commentary.preview || '해설 생성 완료');
         updateTickerPreview(previewText);
         renderCommentary(commentary);
     } catch (err) {
@@ -766,6 +820,8 @@ function injectUI() {
                     <option value="guide"  ${settings.mode === 'guide'   ? 'selected' : ''}>🎮 공략집</option>
                     <option value="wiki"   ${settings.mode === 'wiki'    ? 'selected' : ''}>📚 위키</option>
                     <option value="news"   ${settings.mode === 'news'    ? 'selected' : ''}>📰 속보</option>
+                    <option value="bible"  ${settings.mode === 'bible'   ? 'selected' : ''}>📖 성경</option>
+                    <option value="community" ${settings.mode === 'community' ? 'selected' : ''}>🗣️ 커뮤니티</option>
                 </select>
                 <select class="obs-select obs-context-select" title="맥락 범위">
                     <option value="current" ${settings.context === 'current'  ? 'selected' : ''}>현재</option>
@@ -1116,6 +1172,8 @@ function injectSettings() {
                 <option value="guide"   ${settings.mode === 'guide'   ? 'selected' : ''}>🎮 공략집</option>
                 <option value="wiki"    ${settings.mode === 'wiki'    ? 'selected' : ''}>📚 위키</option>
                 <option value="news"    ${settings.mode === 'news'    ? 'selected' : ''}>📰 속보</option>
+                <option value="bible"   ${settings.mode === 'bible'   ? 'selected' : ''}>📖 성경</option>
+                <option value="community" ${settings.mode === 'community' ? 'selected' : ''}>🗣️ 커뮤니티</option>
             </select>
 
             <label for="hotmic-context" style="margin-top:10px;">맥락 범위</label>
