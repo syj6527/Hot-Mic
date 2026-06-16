@@ -661,18 +661,22 @@
     transition: transform 0.15s;
 }
 
-/* 보관함 헤더 (패널 본문 상단 고정) */
+/* 보관함 모드: 본문 패딩 제거 → sticky 제목 위 틈 없앰(스크롤 시 비침 방지). 패딩은 헤더·리스트가 자체 보유 */
+.obs-panel-body.hma-active { padding: 0; }
+
+/* 보관함 헤더 (패널 본문 상단 고정, 불투명) */
 .obs-panel-body .hma-head {
     position: sticky;
     top: 0;
-    z-index: 3;
+    z-index: 5;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 4px 10px;
-    margin-bottom: 4px;
+    padding: 12px 14px;
+    margin: 0 0 4px;
     background: var(--hm-panel, #232323);
     border-bottom: 1px solid var(--hm-line, rgba(255,255,255,0.18));
+    box-shadow: 0 3px 8px -3px rgba(0,0,0,0.3);
 }
 .obs-panel-body .hma-title {
     flex: 1 1 auto;
@@ -707,7 +711,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 2px 2px 8px;
+    padding: 4px 14px calc(20px + env(safe-area-inset-bottom, 0px));
 }
 .obs-panel-body .hma-empty {
     text-align: center;

@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.28.4 ───
+// ─── 🎤 Hot Mic v2.28.5 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.28.4';
+const HOTMIC_VERSION = '2.28.5';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -702,6 +702,7 @@ function renderCommentary(data) {
     const body = document.querySelector('#observer-panel .obs-panel-body');
     if (!body) return;
     if (archiveOpen) return; // 보관함 보는 중엔 라이브 코멘터리로 덮어쓰지 않음 (currentCommentary는 갱신됨)
+    body.classList.remove('hma-active');
 
     if (!data) {
         body.innerHTML = '<div class="obs-empty">🎤 녹음 중...</div>';
@@ -1026,7 +1027,7 @@ function injectUI() {
                     <option value="dark"      ${settings.theme === 'dark'      ? 'selected' : ''}>⚫</option>
                 </select>
                 <button class="obs-btn-small obs-regen" title="재생성">↺</button>
-                <button class="obs-btn-small obs-bookmark" title="특전 수록 (이 코멘터리 저장)">⭐</button>
+                <button class="obs-btn-small obs-bookmark" title="특전 수록 (이 코멘터리 저장)">★</button>
                 <button class="obs-btn-small obs-archive" title="특전 수록함 열기">💿</button>
                 <button class="obs-btn-small obs-fullscreen" title="전체 펼치기">⛶</button>
                 <button class="obs-btn-small obs-collapse" title="접기">▼</button>
@@ -1517,7 +1518,8 @@ function applyTheme() {
         panel.style.setProperty('opacity', '1', 'important');
         panel.querySelectorAll('.obs-panel-header, .obs-panel-body').forEach(el => {
             el.style.setProperty('background', panelHex, 'important');
-            el.style.setProperty('opacity', a, 'important');
+            // 보관함(hma-active)일 땐 본문을 불투명하게 — 스티키 제목 뒤로 내용 비침 방지
+            el.style.setProperty('opacity', el.classList.contains('hma-active') ? 1 : a, 'important');
         });
         const track = panel.querySelector('.obs-opacity-track');
         if (track) {
@@ -1686,7 +1688,7 @@ function bookmarkText(b) {
 function saveBookmark(btn) {
     const c = currentCommentary;
     if (!c || (!c.inner && !c.director && !c.fact && !c.interview)) {
-        flashBtn(btn, '✕');
+        flashBtn(btn);
         toast('저장할 코멘터리가 없어');
         return;
     }
@@ -1698,7 +1700,7 @@ function saveBookmark(btn) {
     const sig = JSON.stringify(data);
     // 직전 항목과 동일 내용이면 중복 저장 방지
     if (s.bookmarks[0] && JSON.stringify(s.bookmarks[0].data) === sig) {
-        flashBtn(btn, '✓');
+        flashBtn(btn);
         toast('이미 수록됨');
         return;
     }
@@ -1715,8 +1717,8 @@ function saveBookmark(btn) {
     });
     if (s.bookmarks.length > 100) s.bookmarks.length = 100; // 상한
     saveSettingsDebounced();
-    flashBtn(btn, '✓');
-    toast('⭐ 특전 수록 완료');
+    flashBtn(btn);
+    toast('★ 특전 수록 완료');
     if (archiveOpen) renderArchive();
 }
 
@@ -1788,7 +1790,7 @@ function renderArchive() {
                 <div class="hma-card-body">${blk.join('')}</div>
             </div>`;
         }).join('')
-        : `<div class="hma-empty">아직 수록된 명장면이 없어.<br>코멘터리 뜬 상태에서 ⭐ 눌러 저장해봐.</div>`;
+        : `<div class="hma-empty">아직 수록된 명장면이 없어.<br>코멘터리 뜬 상태에서 ★ 눌러 저장해봐.</div>`;
 
     body.innerHTML = `
         <div class="hma-head">
@@ -1808,8 +1810,15 @@ function renderArchive() {
     }));
     body.querySelectorAll('.hma-del').forEach(btn => btn.addEventListener('click', () => deleteBookmark(btn.dataset.id)));
     body.querySelectorAll('.hma-copy').forEach(btn => btn.addEventListener('click', () => copyBookmark(btn.dataset.id)));
-    body.scrollTop = 0;
+    body.classList.add('hma-active');
     applyTheme();
+    // 최초 진입 시 패널 펼침 트랜지션(~0.3s) 전에 스크롤이 어긋나는 현상 방지 — 여러 단계로 최상단 고정
+    const pinTop = () => { body.scrollTop = 0; };
+    pinTop();
+    requestAnimationFrame(() => { pinTop(); requestAnimationFrame(pinTop); });
+    setTimeout(pinTop, 60);
+    setTimeout(pinTop, 200);
+    setTimeout(pinTop, 360);
 }
 
 // 작은 토스트 알림
@@ -1822,13 +1831,11 @@ function toast(msg) {
     t._timer = setTimeout(() => t.classList.remove('show'), 1400);
 }
 
-// 버튼 잠깐 깜빡 피드백
-function flashBtn(btn, glyph) {
+// 버튼 잠깐 깜빡 피드백 (글자는 안 건드림 — 글리프 꼬임 방지)
+function flashBtn(btn) {
     if (!btn) return;
-    const old = btn.textContent;
-    btn.textContent = glyph;
     btn.classList.add('obs-btn-flash');
-    setTimeout(() => { btn.textContent = old; btn.classList.remove('obs-btn-flash'); }, 700);
+    setTimeout(() => btn.classList.remove('obs-btn-flash'), 450);
 }
 
 // 현재 테마 색 (오버레이용)
