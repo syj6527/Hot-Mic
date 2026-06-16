@@ -664,11 +664,13 @@
     z-index: 10110;
     background: rgba(0, 0, 0, 0.55);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top));
     box-sizing: border-box;
     font-family: inherit;
+    overflow-y: auto;
 }
 #hotmic-archive .hma-box {
     width: 100%;
