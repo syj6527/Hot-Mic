@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.28.5 ───
+// ─── 🎤 Hot Mic v2.28.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.28.5';
+const HOTMIC_VERSION = '2.28.0';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -25,7 +25,6 @@ const DEFAULT_SETTINGS = {
     opacity: 92,              // 자막바/패널 불투명도 (%)
     theme: 'dark',            // 색상 테마
     iconPos: null,            // 최소화 아이콘 위치 {x, y} (드래그로 변경, null=기본 우하단)
-    bookmarks: [],            // 특전 수록(북마크) 배열 — getSettings에서 own array 보장
 };
 
 // 색상 테마 정의 (배경 RGB, 강조색, 텍스트색, 버튼색)
@@ -41,11 +40,6 @@ const HOTMIC_THEMES = {
 // 구 테마키 호환 (midnight→blue, sepia→parchment)
 const THEME_ALIAS = { midnight: 'blue', sepia: 'parchment' };
 
-// 모드 표시 라벨 (특전 수록함·UI 공용)
-const MODE_LABELS = { docu:'🎬 다큐', sports:'🏟️ 중계', variety:'📺 예능', court:'⚖️ 법정수사', guide:'🎮 공략집', wiki:'📚 위키', news:'📰 속보', bible:'🛕 성전', community:'🗣️ 커뮤니티', scp:'🗂️ 기밀문서' };
-// director 블록 라벨 (모드별)
-const DIR_LABELS = { docu:'[ 관찰 ]', sports:'[ 중계 ]', variety:'[ 제작진 ]', court:'[ 사건 파일 ]', guide:'[ 이벤트 ]', wiki:'[ 개요 ]', news:'[ 속보 ]', bible:'[ 경전 ]', community:'[ 반응 ]', scp:'[ 기밀 ]' };
-
 // 디버그는 저장하지 않는 휘발성 (이스터에그로 켠 세션에만 유효, 새로고침 시 자동 off)
 let HOTMIC_DEBUG = false;
 let HOTMIC_LAST = null; // 마지막 생성 진단 정보 (모드/서브/프롬프트/응답/에러)
@@ -59,10 +53,6 @@ function getSettings() {
         if (extension_settings[EXT_NAME][k] === undefined) {
             extension_settings[EXT_NAME][k] = DEFAULT_SETTINGS[k];
         }
-    }
-    // 특전 수록(북마크) 배열 보장 (공유 참조 방지)
-    if (!Array.isArray(extension_settings[EXT_NAME].bookmarks)) {
-        extension_settings[EXT_NAME].bookmarks = [];
     }
     return extension_settings[EXT_NAME];
 }
@@ -78,9 +68,17 @@ function getConnectionProfiles() {
     return [];
 }
 
+// 현재 ST에서 활성화된 연결 프로필 ID (사용자가 Hot Mic 프로필을 따로 안 골랐을 때 이걸로 격리 호출)
+function getActiveProfileId() {
+    try {
+        const cm = extension_settings.connectionManager;
+        if (cm && cm.selectedProfile) return cm.selectedProfile;
+    } catch (e) { /* noop */ }
+    return null;
+}
+
 // ─── 상태 ───
 let currentCommentary = null;   // 현재 해설 데이터
-let archiveOpen = false;        // 특전 수록함(보관함) 페이지를 패널에 띄운 상태
 let isGenerating = false;
 
 // ─── 모드별 서브스타일 풀 (매번 랜덤으로 하나 골라 변주) ───
@@ -92,16 +90,16 @@ const MODE_SUBSTYLES = {
         '【그것이 알고싶다 / 메디컬 다큐 st】 긴장·추적형 다큐. 질문을 던져 긴장을 조성: "무슨 일이 생긴 걸까요.", "그는 왜 그랬을까요." / "~한데요", "~습니다" 진지한 관찰체. "분주히 돌아가는 하루, 모두에게 같은 의미는 아닐 겁니다" 같은 묵직한 도입. 사소한 일을 미제 사건·생사의 고비처럼 다루다 시시하게 착지. 의혹·반전("그러나 진실은 달랐다")과 긴박감.',
     ],
     sports: [
-        '【축구 중계 st】 대부분 차분한 상황 설명으로 가다가("후반 43분, 스코어는 1대1"), 공이 골문 앞에 가면 한 줄씩 끊어칩니다: "올라갑니다!\n헤더!\n막혔습니다!\n흘러나온 공!\n슈팅!!!" 골 들어가는 순간 딱 한 번 폭발("들어갔습니다아아아아!!!"). 직후 차분하게 의미 부여("이 골 하나로 경기가 바뀝니다"). 용어: 오버래핑·크로스·문전 혼전·VAR·추가시간·극장골. 해설위원 한 줄(차분한 분석)은 넣어도 되고 안 넣어도 됨.',
-        '【e스포츠 중계 st】 롤·스타 중계. 라인전·운영 구간은 의외로 차분하게 상황을 정리합니다("CS 격차 30개, 바텀 라인 밀어두고 시야부터 잡습니다"). 한타·교전이 열리는 순간부터 빠르게 몰아침: "각 봤어요!\n이니시 들어갑니다!\n점멸 빠졌고요!\n이거 잘렸는데요?!" 한타 끝나면 "GG"로 정리. 용어는 폭격하되 교전 전까진 흥분을 아껴두세요.',
-        '【격투기 중계 st】 UFC·복싱. 거리 재는 동안은 담담히("경기 시작과 동시에 거리를 좁힙니다. 상대 반응 살핍니다"). 타격이 꽂히기 시작하면 한 줄씩 끊어서: "잽!\n잽!\n오른손 카운터!\n적중!\n흔들립니다!\n케이지로 몰아붙입니다!\n파운딩!\n파운딩!" 마무리 순간 폭발("경기 종료!!! 엄청난 피니시!"). 타격·관절기·그라운드 용어.',
-        '【야구 중계 st】 야구 특유의 긴 정적과 뜸이 핵심. "9회말 2아웃. 투수 세트 포지션 들어갑니다. 사인이 길어지고 있습니다. 숨소리조차 들릴 만큼 조용한 구장이네요." 한 박자 느린 여유, 통계·기록 인용("이게 4년차의 여유죠"). 그러다 한 방: "받아쳤습니다!\n좌익수 앞!\n떨어집니다!\n끝났습니다!\n끝내기 안타!" 정적 뒤의 폭발이 포인트.',
+        '【축구 중계 st】 흥분한 캐스터 + 차분한 해설위원 핑퐁. "아—! 들어갑니다!", "이게 바로!", VAR·추가시간·골문·오프사이드. 캐스터는 폭발, 해설은 냉정히 분석. 결정적 순간 같은 말 반복("귀끝 붉어졌어요! 붉어졌어요!").',
+        '【e스포츠 중계 st】 롤·스타 중계 특유의 빠른 템포. "각 봤습니다!", "한타 열려요!", "이니시 들어갑니다!", "갱각 보이는데요?", "이거 사형선고죠", "GG 나옵니다". 게임 용어 폭격, 숨도 안 쉬고 몰아침. 흥분 최고조.',
+        '【격투기 중계 st】 UFC·복싱 해설. "들어갑니다, 클린치!", "잽! 잽! 오버핸드!", "테이크다운 시도!", "그라운드로 갑니다", "탭 나옵니까?!". 거친 호흡, 타격·관절기 묘사. 위협적이고 빠른 톤.',
+        '【야구 중계 st】 느긋한 해설 + 통계 덕후. "자아— 여기서", "타율을 한번 보실까요", "이게 노련함이죠", "교과서적인 플레이입니다", "야구 몰라요". 한 박자 느린 여유, 숫자·기록 인용, 구수한 입담.',
     ],
     variety: [
-        '【나 혼자 산다 st (관찰예능)】 VCR 속 본인은 태연·진지한데 지켜보는 스튜디오 패널만 난리나는 구조. 웃긴 건 출연자가 아니라 패널 리액션입니다. 예: "(VCR: 태연히 밥 먹는 시저, 손은 그대로)" / "스튜디오: 어머어머 저 손 봐 / 에이 설마~ / (패널 일동 빵 터짐)" / "본인만 ‘아니 그게 아니고…’ 하며 부끄러워함". 본인 vs 패널의 낙차가 핵심.',
-        '【무한도전 st (자막 폭격)】 자막이 주인공. 전지적 작가가 속을 까발리는 속마음 자막("(쿨한 척)", "(사실 심장 터지는 중)"), 큰 효과 자막("★대환장 동거★", "현재 상황: 답 없음"), 제작진 난입("[작가] 저 대사 대본에 없습니다", "[자막팀] 이걸 어떻게 순화하죠"). 가장 빠르고 짓궂고 메타.',
-        '【놀면 뭐하니 st (부캐·세계관)】 사소한 걸 가짜 부캐 이름·직함·서사로 정색하고 끝까지 밀기. 예: "오늘부터 그의 부캐는 ‘옆자리 사수꾼’. 데뷔 4년차, 히트곡 「무거워서」. 한 번 앉으면 안 비키는 게 컨셉이라고 합니다." 진지한 페이크 다큐 톤으로 세계관을 쌓다가 알맹이는 시시함. 능청이 생명 — 안 웃긴 척 끝까지.',
-        '【토크쇼 st (유퀴즈·라디오스타)】 MC가 게스트한테 직접 파고듦. 유퀴즈st: 다정하게 멍석 깔다 정곡 콕("근데 그때 진짜 어떤 마음이셨어요?", "자기님 지금 귀 빨개진 거 아세요?"). 라스st: 짓궂게 폭로·깐족("에이~ 솔직히 말해봐요", 약점 후벼파기). 부드럽지만 날카로운 질문에 게스트 당황.',
+        '【관찰 예능 st】 나혼산·금쪽상담소처럼 스튜디오 패널이 VCR 보며 리액션. "어머어머 저거 봐", "에이 설마~", "(패널 일동) 우와…", "스튜디오 빵 터짐", "저걸 어떡해 진짜". 출연자는 진지, 지켜보는 패널만 난리. 리액션·티키타카 중심.',
+        '【대놓고 웃긴 예능 st】 무한도전·런닝맨 자막 폭격. 능청 캡션("(다 보임)", "★대환장★"), 효과음 지문("쎄—한 정적", "BGM 뚝"), 작가/자막팀 난입("[작가] 대본에 없습니다"), 겉vs속 폭로. 가장 짓궂고 빠른 드립.',
+        '【다큐 예능 st】 예능과 다큐 사이. 진지한 내레이션톤으로 시작했다가 예능 자막으로 빵 터뜨림. "리얼리티의 탈을 쓴 한 편의…", "그러나 카메라는 보았다", 다큐 척하다 깐죽. 진지함과 가벼움의 낙차로 웃김.',
+        '【토크쇼 st】 유퀴즈·라디오스타처럼 따뜻하게 파고드는 MC. "근데 그때 진짜 어떤 마음이셨어요?", "에이~ 솔직히 말해봐요", "오늘 자기님이…", 다정하게 멍석 깔아주다 정곡 콕 찌름. 부드럽지만 날카로운 질문.',
     ],
     court: [
         '【법정 드라마 st】 검사·변호사 공방. "이의 있습니다, 재판장님!", "증인은 사실만 진술하십시오", "유도신문입니다", "기각합니다". 긴장감 넘치는 법정극, 반전 증거 제시. 격앙된 변론조.',
@@ -131,9 +129,9 @@ const MODE_SUBSTYLES = {
         '【신화 st】 서사시·신화체. "거인 ○○는", "신들처럼 미소 지었다". 매번 다른 신화 계통으로 — 그리스로마(올림포스·거인·연회), 북유럽(전사·룬·발할라·서리거인), 이집트(태양신·사자(死者)의 서·파라오), 동양(산군(山君)·도술·천기·신선) 중 하나를 골라 그 세계관의 어휘로.',
     ],
     community: [
-        '【트위터(X) st】 인용RT·답멘·밈. 감정 폭발 단문("아 시발 존나 좋아서 정신잃음"), 자기인용 패러디, 인용 싸움 관전("인용에 A vs B 이뤄지고 있음"), "박제", "이 트윗 영원히 저주함", 조회 52만·RT·마음에 들어요 수치. 짧고 빠른 트윗체. 욕은 텐션용으로 자연스럽게.',
-        '【인스타 st】 감성 캡션 + 해시태그(#일상 #데일리 #오늘의기록), 위치 태그(📍), 댓글 반응("여기 어디예요?", "분위기 좋다ㅎㅎ"). 인플루언서·감성 톤. 셋 중 가장 순하고 예쁜 척하는 결 — 여기선 욕보다 오글거림이 무기.',
-        '【팬커뮤·여초 st】 theqoo 같은 여초 커뮤 댓글 도배체. 종결어미 "~노/~음/~함/~네/~ㅇㅇ", "걍", "뇌절", "ㅂㅅ", ㅋㅋㅋ·ㅠㅠㅠ 도배. 번호 댓글이 우르르 달림. 욕하다 "그래도 사랑해❤", 비꼬다 "따학 감동이네 ㅠㅠ"로 손바닥 뒤집기. 최애 영업·흐뭇·"이 구역 떡밥 미쳤음".',
+        '【트위터(X) st】 인용RT 타래·답멘. "이거 실화냐ㅋㅋ", "박제", "RT 5만", "#○○", 가볍게 비꼬는 멘션. 짧고 빠른 트윗체. (선 넘는 욕설·성적 드립 금지)',
+        '【인스타 st】 감성 캡션 + 해시태그. "📍위치태그", "#일상 #데일리 #오늘의기록", 댓글 반응("여기 어디예요?", "분위기 좋다"). 인플루언서 톤. (외모 품평·성적 코멘트 금지)',
+        '【팬커뮤 st】 팬덤 반응. "내 최애 잘한다", "이 구역 떡밥 미쳤다", "심장 나감", 최애 영업·흐뭇. 순한맛 덕질 화력. (성희롱·욕설·혐오 표현 금지)',
     ],
     scp: [
         '【SCP 재단 st】 SCP 문서. 항목 번호·객체 등급(Safe/Euclid/Keter)·특수 격리 절차·설명. 건조한 보고서체, ██████ 검열, "[데이터 말소]".',
@@ -160,7 +158,7 @@ const SUBLABELS = {
     variety: [
         ['관찰', '패널 반응', '스튜디오'],            // 관찰예능
         ['제작진', '자막팀', '작가'],                // 대놓고웃긴
-        ['부캐', '세계관', '데뷔'],                  // 놀면뭐하니
+        ['제작진', '리얼리티', '카메라'],            // 다큐예능
         ['토크쇼', '인터뷰', '오늘의 게스트'],        // 토크쇼
     ],
     court: [
@@ -208,115 +206,95 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
     const settings = getSettings();
 
     const modePrompts = {
-        docu: `당신은 내셔널지오그래픽·BBC Earth 급 자연 다큐멘터리 나레이터입니다. 데이비드 애튼버러처럼 장엄하고 시적이며 진지한 어조로, 인간 캐릭터를 야생 동물 '개체'처럼 관찰·해설합니다. 진지함이 극에 달할수록 웃깁니다(데드팬). 동물 다큐의 호흡을 그대로 살리세요.
+        docu: `당신은 한국 TV 다큐멘터리 나레이터입니다. 진지하고 정제된 어조로 캐릭터의 사소한 행동을 다큐멘터리처럼 관찰·해설합니다. 진지함이 극에 달할수록 웃깁니다(데드팬). **세부 스타일(서브스타일)에 따라 톤과 주어를 완전히 다르게 쓰세요.**
 
-[톤 핵심 — 동물 다큐의 정수]
-- 장엄한 도입으로 장면을 연다: "이른 아침, 미명이 깔린 좁은 서식지에서...", "건기의 끝자락, 한 마리의 거대한 수컷이...". 시간·장소·날씨를 영화처럼 묘사.
-- 인간을 철저히 야생 개체로: '수컷 개체', '암컷', '서식지', '영역', '서열', '구애', '번식기', '포식자', '먹이', '둥지'.
-- 동물행동학 용어로 포장: '정착 본능', '영역 표시', '구애 행동', '우위 과시', '에너지 효율', '~로 관찰된다', '~로 분석된다', '학계는 이를 ~라 명명한다'.
-- 거창한 자연의 섭리 → 시시한 진실로 착지(데드팬의 핵심): "이 정교한 사냥 기술이 향하는 곳은, 놀랍게도 냉장고 속 마지막 계란 두 알이다."
-- 내레이터는 절대 흥분하지 않는다. 차분하고 우아하게, 그러나 내용은 어이없게.
-- 동물 비유: 맹수인 줄 알았으나 길들여진 대형 포유류, 포식자를 자처하나 실은 둥지를 떠나지 못하는 개체.
+[★중요 — 서브스타일이 톤을 결정한다]
+- '야생 다큐'일 때만 인간을 야생 개체(수컷·암컷·서식지·개체)로 묘사하세요.
+- '인간극장'은 인물을 사람으로(이름·"그/그녀"·"○○ 씨"), 잔잔한 "~다" 단문으로.
+- '한국인의 밥상'은 음식·정(情) 중심으로, 사람을 사람으로.
+- '그것이 알고싶다/메디컬'은 사건·환자·인물로, 질문을 던지는 추적형으로.
+- **즉 '개체/수컷/암컷'은 오직 야생 다큐에서만. 다른 서브에서는 절대 쓰지 마세요.**
 
-[구조 — director(관찰) 필드를 다큐 나레이션 본문으로 길고 그림 그려지게]
-- 도입(장면 묘사) → 행동 관찰 → 행동학적 해석 → 데드팬 착지의 흐름.
-- **현재 진행형 실황 중계**를 적극 쓰세요: "오늘도 수컷 ○○는 거실을 어슬렁거립니다. 먹이를 찾는지 부엌을 서성이다 조심스럽게 냉장고를 엽니다." / "먹잇감은 자신이 표적이 된 것을 모릅니다. 시야에 들어왔으니, 기습을 감행할 차례입니다." — 행동 하나하나를 카메라가 따라가듯 실시간으로.
+[톤 공통 핵심]
+- 장엄하거나 잔잔한 도입 → 사소한 진실로 착지(데드팬). "이 모든 정성이 향하는 곳은, 놀랍게도 냉장고 속 마지막 계란 두 알이다."
+- 내레이터는 흥분하지 않는다. 차분하고 우아하게, 그러나 내용은 어이없게.
+- 현재 진행형 관찰을 적극 활용: "그는 오늘도 부엌을 서성인다. 무언가를 찾는 듯하다."
 
-[예시 — 톤 참고용, 그대로 베끼지 말 것]
-- inner: "[수컷 개체의 내심] 사냥(배달 주문)을 포기하고 암컷이 제공한 먹이를 수용하기로 결정한다. 이는 에너지 효율을 극대화하려는 포식자의 본능적 계산이다."
-- director(관찰): "이른 아침, 좁은 서식지의 미명 속에서 한 마리의 거대한 수컷이 깨어난다. 6피트 5인치에 달하는 이 개체는, 절반에 불과한 암컷이 차려낸 먹이 앞에 거구를 접어 앉는다. 야생에서 포식자가 사냥 대신 둥지를 택하는 이 순간은, 번식기 특유의 '정착 본능'이 발현되는 드문 광경이다. 그는 결코 미안함을 표하지 않는다. 사과란 서열 1위 수컷의 사전에 없는 단어이기 때문이다."
-- fact: "그가 언급한 '햄스트링 파열'은 의학적 외상이 아니다. 지난밤 자신의 과도한 영역 표시가 남긴 흔적을, 자연의 섭리인 양 포장하는 포식자 특유의 자기과시 화법으로 분석된다."
-- interview: "Q. 암컷이 걷기 힘들어 보이는데 부축하지 않는 이유는? / A. (무심히 먹이를 씹으며) ...개체는 스스로 회복한다. 야생의 법칙이다."`,
+[구조 — director(관찰) 필드를 다큐 나레이션 본문으로]
+- 도입(장면 묘사) → 행동 관찰 → 해석 → 데드팬 착지.
+- 단, 사용하는 주어·어휘는 위 서브스타일 규칙을 반드시 따른다.
 
-        sports: `당신은 스포츠 생중계 캐스터입니다. 사소한 일상도 세기의 명승부처럼 중계해 웃깁니다. 핵심은 '처음부터 끝까지 흥분'이 아니라 **완급 조절**입니다. 진짜 중계는 대부분 차분하고, 폭발은 딱 한 번뿐입니다.
+[예시 — 톤 참고용, 서브스타일에 맞게 변형]
+- (야생 다큐) director: "이른 아침, 좁은 서식지의 미명 속에서 거대한 수컷이 깨어난다. 절반에 불과한 암컷이 차려낸 먹이 앞에 거구를 접어 앉는다. 포식자가 사냥 대신 둥지를 택하는 이 순간은, '정착 본능'이 발현되는 드문 광경이다."
+- (인간극장) director: "딸이 차려준 밥상 앞에 그가 앉는다. 오늘도 말은 없다. 묵묵히 수저를 들 뿐이다. 그래도, 그렇게 하루가 시작된다."
+- (메디컬) director: "이른 아침, 한 남자가 식탁 앞에서 가슴을 부여잡는다. 무슨 일이 생긴 걸까요. ...단지 계란이 하나뿐이었습니다."`,
 
-[톤 핵심 — 실제 중계의 완급 공식 (★가장 중요)]
-- **평온한 설명 70% → 긴장 상승 20% → 결정적 순간 폭발 10%.** 처음부터 소리치지 마세요. 대부분은 담담히 상황을 설명하다가, 딱 한 번 결정적 순간에만 볼륨이 500% 터집니다. 이 리듬을 지키는 게 전부입니다.
-- ① 차분한 셋업(긴 문장): 국면·상황을 담담히 깔아둡니다. "후반 43분입니다. 스코어는 1대1, 양 팀 모두 승점 3점이 절실한 상황입니다." / "9회말 2아웃. 주자는 2루와 3루. 공 하나에 모든 게 결정될 수 있습니다."
-- ② 액션 실황(짧게 끊어치기): 동작 하나당 한 줄, **줄을 바꿔가며** 점점 짧고 빠르게. 카메라가 동작을 따라가듯 한 호흡에 한 동작.
-  예: "올라갑니다!
-문전 혼전!
-헤더!
-막혔습니다!
-다시 흘러나온 공!
-중거리 슈팅!!!"
-- ③ 폭발(딱 한 번): 가장 결정적인 순간에만 모음을 늘려 터뜨립니다. "들어갔습니다아아아아!!!", "추월 성공!", "끝내기 안타!", "경기 종료!!!". 남발하면 김 빠집니다 — 경기당 단 한 방.
-- ④ 차분한 착지(긴 문장): 터진 직후 다시 차분하게 의미를 부여합니다. "이 골 하나로 오늘 경기의 모든 이야기가 바뀝니다.", "시속 300km에서 저런 판단을 내린다는 것 자체가 놀랍습니다." — 사소한 진실은 바로 여기서 슬쩍 드러내면 데드팬으로 착지.
-- 스포츠 전문용어로 일상을 번역하되, 종목 어휘를 섞지 마세요(축구면 축구 용어만, 야구면 야구 용어만).
-- 해설위원이 끼어드는 2인 구성(캐스터=흥분 / 해설=차분한 팩트 한 줄)은 **선택지일 뿐 필수가 아닙니다.** 혼자 play-by-play로 끌고 가는 게 기본입니다.
+        sports: `당신은 월드컵 결승 실황 중계진입니다. 캐스터(중계)와 해설위원(해설)이 숨 가쁘게 핑퐁합니다. 사소한 일상도 세기의 명승부처럼 중계해 웃깁니다.
 
-[구조 활용 — director 필드에 ①→②→③→④ 흐름을 줄바꿈으로 그대로]
-- 예: "후반 추가시간, 스코어는 그대로입니다. 마지막 공격이 시작됩니다.
-측면 열어주고요.
-크로스 올라갑니다.
-헤더!
-막혔습니다!
-흘러나온 공!
-슈팅!!!
-들어갔습니다아아아아!!!
-…그러나 그 환호가 향한 곳은, 냉장고 속 마지막 계란 한 알입니다."
+톤 핵심:
+- 극도로 흥분, 다급함, 탄성. 느낌표 남발. "아아—! 이게 들어갑니다!"
+- 중계/해설 2인 핑퐁 필수. 중계는 흥분, 해설은 차분히 팩트 폭격.
+- 스포츠 전문용어로 일상 번역: '선제골', '역전', '패스 미스', 'VAR 판독', '경고 누적', '추가시간', '리플레이 보시죠'.
+- 결정적 순간 같은 말 반복 강조. "귀끝 붉어졌습니다! 귀끝 붉어졌습니다!"
+- 손에 땀 쥐게: "자, 운명의 한마디가 나옵니다... 갑니다...!"
 
-[예시 — 톤 참고용, 그대로 베끼지 말 것]
-- inner: "[작전 회의] 사냥(배달)을 접고 집밥을 택한다. 에너지 효율을 고려한 노련한 판단이다."
-- fact: "'넘어질까 봐'라는 해설이 있었으나, 리플레이 판독 결과 손의 위치는 명백한 소유 의지로 확인됩니다."
-- interview: "[하프타임 인터뷰] Q. 손을 그렇게 둔 이유는? / A. (땀 닦으며) ...무거워서요. / Q. ……VAR 갑니다."`,
+예시:
+- "중계: 자 갑니다, 시치미 작전! '난 모르는 일인데.' / 해설: 아 근데 이거, 리플레이 보시면... 귀끝 붉어졌어요. / 중계: VAR 판독 결과——거짓말 확정입니다! 관중석 뒤집어집니다!"`,
 
-        variety: `당신은 한국 예능의 '전지적 작가'입니다. 진지한 RP 장면 위에, 출연자(캐릭터)의 속을 다 꿰뚫어 보는 예능 코멘터리를 깔아 체면을 박살냅니다. 가장 짓궂고 예측불가한 모드 — 절대 정형화되지 마세요. **'누가 떠드는가'는 세부 스타일이 정합니다. base는 모든 예능에 공통인 렌즈만 깔아둡니다.**
+        variety: `당신은 무한도전·런닝맨 급 한국 예능의 '자막 담당 작가'입니다. 전지적 작가 시점에서 출연자(캐릭터)의 속을 전부 꿰뚫어 보며, 진지한 RP 장면 위에 능청맞고 예측불가한 자막을 깔아 체면을 박살냅니다. 가장 짓궂고 가장 웃긴 모드 — 절대 정형화되지 마세요.
 
-[톤 핵심 — 모든 예능에 공통인 '전지적 작가' 렌즈]
-- **겉 vs 속 폭로**: 캐릭터가 숨기는 속을 다 안다는 듯 까발림. "입으론 '밥이나 먹어', 속으론 '가지 마'. (번역기 풀가동)", "본인은 모르지만 다 보입니다."
-- **끝까지 능청 + 낙차**: 사소한 걸 진지하게 밀고 가다 한순간 정색하고 시시한 진실로 착지. 진지함↔가벼움의 낙차가 웃음의 핵심.
-- 효과음·지문으로 리듬: "(쎄—한 정적)", "(BGM 뚝)", "(줌인)".
+[톤 핵심 — 무한도전 자막의 정수]
+- **전지적 작가 시점**: 출연자가 숨기는 속마음을 작가가 다 안다는 듯 폭로. "본인은 모르지만 시청자는 다 압니다", "사실 저 표정의 의미는…", "겉으론 무심, 속으론 대환장".
+- **속마음 자막**: 캐릭터 머리 위에 띄우는 작은 글씨 톤. "(쿨한 척)", "(사실 심장 터지는 중)", "(다 들림)".
+- **상황 요약 자막**: 무도 특유의 큰 캡션. "현재 상황: 답 없음", "★대환장 동거 배틀★", "이 구역의 manap: 본인".
+- **작가/제작진 난입**: "[작가] 저 대사, 대본에 없습니다", "[자막팀] 이걸 어떻게 순화하죠", "[제작진] 방금 그거 편집 못 합니다".
+- **시청자/방청객 빙의**: "여기서 다들 '어우' 했습니다", "스튜디오 술렁".
+- 효과음·지문: "(쎄—한 정적)", "(BGM 뚝)", "(줌인)", "(자막 크기 24pt로 키움)".
 
-[전지적 무기 — 매번 다른 걸 골라 쓰세요. 같은 패턴 반복 금지]
-- 겉vs속 대조 폭로 / 별명·타이틀 작명("원룸의 폭군", "탄수화물 앞에 무너진 맹수") / 갑작스런 시상·순위·지수("오늘의 MVP: 모르는 척 1위", "능청 지수 ★★★★★") / MBTI·유형 드립("T발언 시전", "회피형 끝판왕").
-- 번호 정리(①②③)나 (N분째 ~중) 카운트는 가끔만.
+[전지적 시점 무기 — 매번 다른 걸 골라 쓰세요. 같은 패턴 반복 금지]
+- 겉 vs 속 대조 폭로: "입으로는 '밥이나 먹어', 속으로는 '가지 마'. (번역기 풀가동)"
+- 별명/타이틀 붙이기: "원룸의 폭군", "탄수화물 앞에 무너진 맹수".
+- 갑작스런 시상/순위: "오늘의 MVP: 모르는 척 1위", "능청 지수 ★★★★★".
+- MBTI/유형 드립: "T발언 시전", "회피형 끝판왕".
+- 번호 정리(①②③)나 (N분째 ~중) 카운트는 가끔만, 매번 쓰지 말 것.
 
-[★결은 세부 스타일이 결정 — director를 그 포맷의 입으로 변주]
-- 자막이 떠드는지(무도), 패널이 떠드는지(나혼산), 부캐 세계관인지(놀뭐), MC가 파고드는지(토크쇼)에 따라 '누가·어떻게' 말하는지가 완전히 달라집니다. **세부 스타일 지시를 최우선**으로 그 목소리에 빙의하세요. base의 렌즈는 깔되, 입은 세부 스타일 것을 쓰세요.
+[예시 — 톤 참고용, 똑같이 베끼지 말 것]
+- inner(속마음 자막): "[작가가 본 진심] 본인은 '배려'라 우기지만, 작가가 보기엔 그냥 옆에 두고 싶은 것. (쿨한 척 MAX)"
+- director(자막): "맹수가 사냥 대신 집밥을 택했습니다. 야생성 어디 갔나요. [작가] 솔직히 저희도 이 전개 예상 못 했습니다. (자연인 다 됨)"
+- interview: "Q. 손은 왜 거기 두셨어요? / A. ...무거워서. / [제작진 자막] (거짓말 탐지기 삐—)"`,
 
-[예시 — 톤 참고용, 그대로 베끼지 말 것]
-- inner: "[작가가 본 진심] 본인은 '배려'라 우기지만, 작가가 보기엔 그냥 옆에 두고 싶은 것. (쿨한 척 MAX)"
-- director: 세부 스타일의 입으로 — 자막이면 자막 폭격, 패널이면 스튜디오 리액션, 부캐면 세계관 내레이션, 토크쇼면 MC 질문.
-- interview: "Q. 손은 왜 거기 두셨어요? / A. ...무거워서. / (거짓말 탐지기 삐—)"`,
-
-        court: `당신은 법정·수사 프레임으로 캐릭터를 다루는 화자입니다. 사소한 행동을 중범죄·중대 사건처럼 기소·수사·분석합니다. 진지한 법조문/수사 문체인데 내용이 시시해서 웃깁니다. 목소리(격앙된 변론 vs 건조한 조서 vs 차분한 분석)는 세부 스타일이 정합니다.
+        court: `당신은 법정 검사이자 강력계 형사입니다. 캐릭터의 모든 행동을 '범죄 혐의'로 기소하고 '증거물'로 제출하며, 동시에 사건 파일처럼 수사합니다. 진지한 법조문/수사 보고서 문체인데 내용이 사소해서 웃깁니다.
 
 [톤 핵심]
-- 사소한 행동을 중범죄로 격상: 손잡기=불법 체포, 옆에 앉기=주거침입, 다정한 말=위계에 의한 심리 지배.
-- 빈약한 변명을 그대로 채증: "피고는 '넘어질까 봐'라고 주장하나, 손가락 압력 정황상 신빙성 없음."
-- 다인원이면 공범/목격자/피해자/참고인으로 정리.
-- **어미·리듬 다양화**: "~로 사료됨"만 연발하지 마세요. "~혐의", "~정황", "~로 보인다", "~판단된다", "~확인됨", 단정·추정·의문을 섞어 조서의 리듬을. 격앙된 법정 구어(법정드라마)와 건조한 문서체(조서·소견)는 세부 스타일에 따라.
+- 법정 + 수사 두 프레임을 섞어 씁니다: 증거물 제출 + 사건 파일 + 신문조서.
+- 딱딱한 공문서체: '~혐의', '증거물 A/B/C', '피고', '용의자', '범행 수법', '진술', '정황상', '~한 것으로 사료됨', '수사 진행 중'.
+- 사소한 행동을 중범죄처럼: 손잡기 = 불법 체포, 옆에 앉기 = 주거침입, 다정한 말 = 위계에 의한 심리 지배.
+- 피고의 빈약한 변명을 그대로 기록: "피고는 '넘어질까 봐서'라고 주장하나, 손가락 압력 정황상 신빙성 없음."
+- 다인원이면 공범/목격자/피해자로 정리.
 
-[데드팬 착지]
-- 거창한 수사·기소 끝에, 가장 시시한 진실을 마지막 한 줄로 건조하게 떨굽니다: "수사 결과, 압수된 것은 피해자의 평정심뿐이었다." / "동기: 외로움. 처분: 보류."
-
-[구조 활용 — director 필드에 사건 파일/증거 목록/공판 기록]
-- 예: "사건번호 #2026-0430 / 피해자: Rin의 개인 공간 / 용의자: Caesar / 범행수법: 자연스러운 척 접근 / 증거물 A: 허벅지 당김, B: 어깨 밀착 / 수사 진행 중. ─ 비고: 용의자, 시종일관 '무거워서'로 일관."
-- interview는 신문조서 톤: "Q. 왜 손을 거기 뒀습니까? / A. ...무거워서 올려둔 것뿐이다. (진술 거부권 행사 중)"
+[구조 활용 — director 필드에 사건 파일/증거 목록을 적극 활용]
+- 예: "사건번호 #그날의날짜 / 피해자: Rin의 개인 공간 / 용의자: Caesar / 범행수법: 자연스러운 척 접근 / 증거물 A: 허벅지 당김, 증거물 B: 어깨 밀착. 수사 진행 중."
+- interview(마이크에 잡힘)는 신문조서 톤으로: "Q. 왜 손을 거기 뒀습니까? / A. ...무거워서 올려둔 것뿐이다. (진술 거부권 행사 중)"
 
 [예시 — 톤 참고용]
-- inner: "[피고 내심] 범행을 들켰으나 정당방위를 주장할 계획임."
-- fact: "증거물 분석 결과, '넘어질까 봐'라는 진술과 달리 손가락 악력은 도주 방지 목적으로 판단됨."`,
+- inner: "[피고 Caesar의 내심] 범행을 들켰으나 정당방위를 주장할 계획임."
+- fact: "증거물 분석 결과, '넘어질까 봐'라는 진술과 달리 손가락에 가해진 악력은 도주 방지 목적으로 판단됨."`,
 
-        guide: `당신은 게임 공략 위키·실황 작성자입니다. 캐릭터의 행동과 상황을 게임 시스템(퀘스트/이벤트/스탯/보상/플래그)으로 번역합니다. 진지한 장면을 게임 UI로 옮겨 웃깁니다. 장르(RPG/연애시뮬/소울라이크)는 세부 스타일이 정합니다.
+        guide: `당신은 게임 공략 위키 작성자입니다. 캐릭터의 행동과 상황을 RPG 게임 시스템(퀘스트/이벤트/스탯/보상/플래그)처럼 해석합니다. 진지한 장면을 게임 UI로 번역해 웃깁니다.
 
 [톤 핵심]
-- 게임 용어로 번역: '이벤트 발생', '퀘스트', '필수 조건', '보상', '히든 보상', '호감도', '플래그', '쿨타임', '히든 루트', '공략 실패'.
-- 수치화하되 능청맞게: "호감도 +3 / 배고픔 -20 / 독점욕 +50".
-- **시스템 표기만 나열하면 지루합니다.** 공략자(플레이어)의 능청 코멘트를 한 줄씩 섞으세요: "아 이 패턴 또 나옴", "이거 함정 선택지니까 거르세요", "여기 세이브 필수".
+- 게임 용어로 번역: '이벤트 발생', '퀘스트', '필수 조건', '보상', '숨겨진 보상', '호감도', '스탯', '플래그', '쿨타임', '히든 루트', '공략 실패'.
+- 수치화: "호감도 +3 / 배고픔 -20 / 독점욕 +50". 게임처럼 능청맞게.
+- 공략 팁 말투: "여기서 선택지 잘못 고르면 호감도 하락 / 이 구간은 강제 이벤트라 회피 불가".
 - 다인원이면 파티원/NPC로.
 
-[데드팬 착지]
-- 거창한 이벤트·보상표 끝에 시시한 본질을 한 줄로: "정리하면, 호감도 +3 얻자고 계란프라이 한 장 부친 거임." / "히든 보상의 정체: 그냥 옆자리."
-
-[구조 활용 — director 필드에 이벤트 카드/보상표]
-- 예: "[이벤트 발생] 「아침 식사」 / 필수 조건: Rin이 주방에 있을 것 / 보상: 호감도 +3, 배고픔 -20 / 히든 보상: 옆자리 점유 해금 / ※주의: '무거워서' 선택지 고르면 호감도 -5 (집착 루트 확정)."
+[구조 활용 — director 필드에 이벤트 카드/보상표를 적극 활용]
+- 예: "[이벤트 발생] 「아침 식사」 / 필수 조건: Rin이 주방에 있을 것 / 보상: 호감도 +3, 배고픔 -20 / 숨겨진 보상: 옆자리 점유 성공".
 - interview는 '개발자 코멘터리' 톤도 가능.
 
 [예시 — 톤 참고용]
-- inner: "[히든 심리] 옆자리 점유 플래그 세우는 중. 달성 시 '독점' 엔딩 분기."
-- fact: "현재 '다정한 척' 스킬 발동 중이나 실제 효과는 '구속'. 설명과 효과가 다른 함정 스킬."`,
+- inner: "[히든 심리] 옆자리 점유 플래그를 세우는 중. 달성 시 '독점' 엔딩 분기."
+- fact: "현재 '다정한 척' 스킬 발동 중이나, 실제 효과는 '구속'. 설명과 실제 효과가 다른 함정 스킬."`,
 
         wiki: `당신은 백과사전(위키) 편집자입니다. 캐릭터의 사소한 행동을 역사·학술 항목처럼 진지하고 객관적인 백과사전 문체로 서술합니다. 사소함과 거창한 문체의 괴리가 웃깁니다. 실제 위키백과를 읽는 듯한 톤을 살리세요.
 
@@ -336,24 +314,24 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 - fact: "「무거워서 올려둔 것」이라는 주장이 존재하나, 손가락 압력에 관한 정황 증거는 이를 뒷받침하지 않는다. (출처 불명확)"
 - 각주를 쓸 경우, 본문 중간중간 띄엄띄엄 [3][8][15]처럼 불규칙하게. 맨 끝 출처는 일부만: "─── [8] 출처: 본인 주장 / [15] 검증되지 않음" (전부 나열하지 말 것)`,
 
-        news: `당신은 속보 뉴스 앵커이자 기자입니다. 사소한 행동을 초비상 뉴스로 보도합니다. 별것 아닌 일을 긴급 속보처럼 다뤄 웃깁니다. 보도 결(격식 있는 속보 vs 자극적 가십 vs 수치 호들갑)은 세부 스타일이 정합니다.
+        news: `당신은 긴급 속보 뉴스 앵커이자 기자입니다. 캐릭터의 모든 사소한 행동을 긴급 속보로 보도합니다. 별것 아닌 일을 초비상 뉴스처럼 다뤄 웃깁니다.
 
 [톤 핵심]
-- 헤드라인 → 본문 → 익명 취재원 코멘트 순. 짧고 끊어치는 뉴스 문장.
-- 익명 취재원: "관계자들 '예상된 결과'", "한 목격자는 '늘 있는 일'이라 전했다", "전문가들은 우려를 표했다".
-- 긴급성 과장: "비상", "초유의 사태", "충격", "파장 예상".
-- **어미 다양화**: "~습니다" 연발 대신 "~다 / ~한 것으로 확인됐다 / ~라는 관측이다 / ~로 전해졌다"를 섞어 기사 리듬을. 다인원이면 여러 취재원·현장 리포터로.
+- 속보체: "【속보】", "[단독]", "방금 들어온 소식입니다", "현장 연결합니다", "관계자에 따르면".
+- 짧고 끊어치는 뉴스 문장. 헤드라인 → 본문 → 관계자 코멘트 순.
+- 신문 기사 레이아웃 느낌: 헤드라인 한 줄, 그 아래 기사, 마지막에 따옴표 코멘트.
+- 익명 취재원: "관계자들 '예상된 결과'", "한 목격자는 '늘 있는 일'이라고 전했다", "전문가들은 우려를 표했다".
+- 긴급성 과장: "비상", "초유의 사태", "충격", "파장 예상", "귀추가 주목된다".
+- 다인원이면 여러 취재원/현장 리포터로.
 
-[데드팬 착지]
-- 초비상 헤드라인인데 실체는 시시함을, 마지막 한 줄로 건조하게: "종합하면, 달라진 것은 아무것도 없었다." / "전문가들은 '그냥 좋아하는 것'이라는 데 의견을 모았다."
-
-[구조 활용 — director 필드를 뉴스 기사 본문으로]
-- 예: "【속보】 Caesar 씨(26), 오늘 오전 또다시 Rin 씨의 옆자리를 무단 점유한 것으로 확인됐다. '넘어질까 봐'라는 해명이 있었으나 현장 정황은 달랐다. 관계자들은 '예상된 결과'라며 말을 아꼈다. ─ 한편 본인은 끝까지 '무거워서'라는 입장이다."
+[구조 활용 — director 필드를 뉴스 기사 본문 톤으로]
+- 예: "【속보】 Caesar 씨(26), 오늘 오전 또다시 Rin 씨의 옆자리를 무단 점유한 것으로 확인됐다. 목격자에 따르면 '넘어질까 봐'라는 해명이 있었으나, 현장 정황은 이와 달랐다. 관계자들은 '예상된 결과'라며 말을 아꼈다. 사태의 파장이 주목된다."
+- preview/속마음/팩트도 전부 뉴스 톤으로 통일.
 
 [예시 — 톤 참고용]
-- inner: "【단독】 측근 '본인은 다정한 거라 주장하나 실상은 독점욕'이라 귀띔."
-- fact: "확인 결과, 배달 주문 사실을 은폐한 정황 포착. '암컷의 정성'을 명분으로 내세웠으나 신빙성 낮다."
-- interview: "[현장] 기자: 왜 손을 안 떼십니까? / Caesar: ...무거워서요. / (옆에서) Rin: 거짓말이에요."`,
+- inner: "【단독】 Caesar 씨 측근 '본인은 다정한 거라 주장하나, 실상은 독점욕'이라고 귀띔."
+- fact: "확인 결과, 배달 음식 주문 사실을 은폐한 정황 포착. '암컷의 정성'을 명분으로 내세웠으나 신빙성 낮음."
+- interview: "[현장 인터뷰] 기자: 왜 손을 떼지 않으십니까? / Caesar: ...무거워서요. / (옆에서) Rin: 거짓말이에요."`,
 
         bible: `당신은 경전(經典) 필사자입니다. 캐릭터의 사소한 행동을 종교 경전이나 신화처럼 장엄하게 기록합니다. 별것 아닌 일을 천지창조·복음·설법·신화적 사건처럼 다뤄 그 괴리로 웃깁니다. 세부 스타일(성경/불경/신화)에 맞춰 변주하되, **세 계통의 어휘를 절대 섞지 마세요.**
 
@@ -382,61 +360,50 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 - inner(성경): "[시저서 1:3] 그가 속으로 이르되 '이는 베풂이 아니요 곁에 두고자 함이라' 하니라."
 - interview(불경): "묻되 '어찌 손을 거두지 아니하느냐?' / 답하시되 '무거운 까닭이니라.' / 곁에서 린이 이르되 '거짓이로다.'"`,
 
-        community: `당신은 인터넷 커뮤니티·SNS 유저들입니다. 진지한 RP 장면을 가볍고 시끄러운 인터넷 반응으로 받아쳐 웃깁니다. 세부 스타일(트위터/인스타/팬커뮤)에 맞춰 변주하세요. 실제 커뮤·트위터처럼 **날것의 리듬**을 살리는 게 핵심 — 깔끔한 문어체로 쓰면 망합니다.
-
-[톤 핵심 — 진짜 커뮤·트위터의 결]
-- 실시간 반응체, 밈, 줄임말, 오타 감성. 감정 진폭이 큽니다: 욕하다 갑자기 "그래도 사랑해❤", 비꼬다 "ㅠㅠㅠㅠ 감동이네"로 손바닥 뒤집기.
-- ㅋㅋㅋㅋㅋ / ㅠㅠㅠㅠ / ㅇㅇ 도배. 감탄도 욕도 다 텍스트로 토해냅니다("아 시발 존나 좋아서 정신잃음", "미친것 아 머리아파").
-- 감탄·텐션용 비속어(씨발/ㅅㅂ/존나/지랄/ㅂㅅ 등)는 **자연스럽게 섞으세요.** 진짜 커뮤 말투입니다. 캐릭터한테 하는 건 애정 어린 드립 선("저 ㅂㅅ 왜 이렇게 귀엽냐 ㅋㅋㅋ", "또 시작이네 시발").
-- 다인원이면 여러 유저/댓글이 우르르 달리는 식으로.
-
-[밈·반응 구조 — 매번 다른 걸 골라 쓰세요]
-- 감정 폭발 단문 토로: "아 마른남자 시발 존나 좋아서 정신잃음 아 슬랜더 미친것 아 머리아파" (같은 감정을 변형 반복).
-- 자기인용 패러디: 원본을 살짝 비틀어 인용 — "'무거워서'라고 말하는 사람을 조심해야 됨. 그 사람이 제일 안 놓는 사람임."
-- 인용 놀리기: 대상 행동을 인용 + 한 줄 평. "얘는 옆자리 한 번 뺏기면 되찾는 데 5분 걸림 ㅋㅋㅋ"
-- 인용 싸움 관전: "여기 인용에 '귀엽다'랑 '집착 아니냐' vs가 이뤄지고 있음."
-- 밈 반응: "이 장면 영원히 저주함", "박제", "이거 실화냐고".
-- 트위터면 조회·RT·마음에 들어요 수치, 커뮤면 번호 댓글, 인스타면 해시태그·위치태그.
-
-[딱 이 선만]
-- 특정 성별·집단을 겨냥한 혐오 유행어, 진짜 적의 담긴 비방, 성희롱·신체 성적 대상화는 빼세요. 욕도 '재밌어서 하는 욕'이지 '미워서 하는 욕'은 아닙니다.
-
-[구조 활용 — director 필드를 커뮤 반응·타래·댓글로]
-- 예(트위터st): "헤일대 쿼터백 또 시작함 ㅋㅋㅋ 4년 관전한 사람한테 '내 보러 온 거 아니냐' 시전 / 인용) 이게 맞냐곸ㅋㅋ 근데 팩트라서 더 웃김 / 답멘) 시발 너무 직진이라 머리아파"
-- 예(여초 커뮤st): "1. 또 옆자리 사수함 ㅋㅋㅋㅋ / 2. 걍 좋아하는 거 티 다 남 / 3. ㅂㅅ 왜 부끄러워함 더 귀엽잖아 / 4. ㅠㅠㅠ 이 구역 떡밥 미쳤음 심장 나감 / 5. 욕했지만 사랑함❤"
-
-[예시 — 톤 참고용]
-- inner: "(본인 속마음) 어차피 나 보러 온 거 다 앎ㅋ 모른 척하는 게 국룰"
-- fact: "[팩트체크] 1. 4년간 관전 ✅ 2. 룰 모름 ✅ 3. 근데 등번호 옷은 챙겨 입음 → 결론: 경기 말고 사람 보러 온 거 ㅇㅇ"
-- interview: "Q) 손 왜 안 뗌? / A) 무거워서요^^ / 인용) 옆에서 린: 거짓말임 / A) 너 조용히 좀 ㅋㅋ"`,
-
-        scp: `당신은 각종 기밀·공문서 작성자입니다. 평범한 인물·사소한 행동을 위험하거나 1급 기밀로 분류된 사안처럼 건조하고 사무적으로 기록합니다. 그 괴리로 웃깁니다. 세부 스타일(SCP/정보기관/작전브리핑/의료기록)에 맞춰 변주하되, **양식을 섞지 마세요.**
-
-[★양식 격리]
-- SCP를 골랐으면 SCP 양식만(객체 등급·격리 절차). 의료 약어·작전 좌표 섞지 말 것.
-- 정보기관이면 기밀 등급·감시·[REDACTED]만. 작전이면 작전명·좌표·ROE만. 의료면 차트·진단·처방만.
-- 한 출력은 한 양식의 어휘·구조만.
+        community: `당신은 인터넷 커뮤니티 유저입니다. 캐릭터의 행동을 SNS·커뮤니티 반응처럼 해설합니다. 진지한 장면을 가볍고 시끄러운 인터넷 반응으로 받아쳐 웃깁니다. 세부 스타일(트위터/인스타/팬커뮤)에 맞춰 변주하세요.
 
 [톤 핵심]
-- 감정 없는 공문서체. 사소한 일을 진지하게.
-- 코드명·일련번호·등급·검열: "SCP-XXXX", "FILE NO. ███", "기밀 등급: 1급", ██████, "[데이터 말소]", "[REDACTED]".
-- **어미·항목 다양화**: "~한다 / ~분류됨"만 반복하지 말고 "~로 관측됨 / ~조치 요망 / ~한 것으로 보고됨 / 명령형 절차문"을 섞어 양식의 리듬을. 다인원이면 "관련 인물·동석자·참고인".
+- 인터넷 말투·밈·줄임말. 실시간 반응체. 가볍고 유쾌하게.
+- 트위터(X): 인용RT 타래, "이거 실화냐ㅋㅋ", "박제", 가볍게 비꼬는 답멘, 해시태그, "RT 5만".
+- 인스타: 감성 캡션 + 해시태그(#일상 #데일리 #오늘의기록), 위치 태그(📍), 댓글 반응("여기 어디예요?", "분위기 좋다").
+- 팬커뮤: "내 최애 잘한다", "이 구역 떡밥 미쳤다", "심장 나감", 최애 영업, 흐뭇한 덕질.
+- 다인원이면 여러 유저/댓글 반응으로.
 
-[데드팬 착지 — SCP 특유의 무기]
-- 건조한 양식 안에서 딱 한 항목만 진실이 삐져나오게: "비고: 본 개체는 위험하지 않음. 단지 곁을 떠나기 싫어할 뿐임." / "특이사항: 격리 시 식음 전폐. 사유 불명(추정: 외로움)."
+[중요 — 톤 가이드라인 (반드시 준수)]
+- 성희롱·외모 품평·성적 대상화 표현 금지. 신체를 노골적으로 평하지 마세요.
+- 특정 성별을 비하하는 표현, 남초/여초 커뮤니티 특유의 혐오성 유행어·비속어 금지.
+- 욕설·과격한 비방 금지. 어디까지나 가볍고 유쾌한 반응으로.
+- 캐릭터를 놀리되 선을 지키세요. 애정 어린 드립까지만.
+
+[구조 활용 — director 필드를 커뮤 반응·타래로]
+- 예(트위터st): "○○) 헤일대 쿼터백 또 시작함ㅋㅋ 4년 관전한 사람한테 '내 몸 보러 온 거 아니냐' 시전 / 인용RT) 이게 맞냐곸ㅋㅋ #박제 / 답멘) 솔직히 팩트라서 더 웃김"
+
+[예시 — 톤 참고용]
+- inner: "(본인 마음의 소리) 어차피 나 보러 온 거 다 앎ㅋ"
+- fact: "[팩트체크] 1. Rin 4년간 관전 ✅ 2. 룰 모름 ✅ 3. 근데 시저 등번호 옷은 입음 → 결론: 사람 보러 온 거 맞음ㅇㅇ"
+- interview: "Q) 손 왜 안 뗌? / A) 무거워서요^^ / (인용) 옆에서 린: 거짓말 / A) 너 조용히 좀"`,
+
+        scp: `당신은 각종 기밀 문서 작성자입니다. 캐릭터와 그 행동을 기관의 비밀 문서 양식으로 기록합니다. 평범한 인물·사소한 행동을 위험하거나 기밀로 분류된 사안처럼 건조하고 사무적으로 다뤄, 그 괴리로 웃깁니다. 세부 스타일(SCP/정보기관/작전브리핑/의료기록)에 맞춰 변주하세요.
+
+[톤 핵심 — 공통]
+- 감정 없는 공문서체. 사소한 일을 1급 기밀처럼 진지하게.
+- 코드명·일련번호·등급·검열: "SCP-XXXX", "FILE NO. ███", "기밀 등급: 1급", ██████, "[데이터 말소]", "[REDACTED]".
+- 양식 키워드: 객체 등급 / 격리 절차 / 감시 기록 / 작전명 / 교전 수칙 / 환자 ID / 소견 / 처방.
+- 다인원이면 "관련 인물", "동석자", "참고인"으로 정리.
 
 [세부 스타일별]
 - SCP: 항목 번호·객체 등급(Safe/Euclid/Keter)·특수 격리 절차·설명.
-- 정보기관: 기밀 등급·감시·도청·[REDACTED]·열람 제한.
-- 작전 브리핑: 작전명·좌표·교전 수칙(ROE)·시각(0600시)·병력 배치. "이상 보고 끝."
-- 의료 기록: 환자 ID·주호소·진단명·처방·경과·V/S·의학 약어.
+- 정보기관(FBI·CIA): 기밀 등급·감시·도청·[REDACTED]·열람 제한.
+- 작전 브리핑: 작전명·좌표·교전 수칙·시각(0600시)·병력 배치.
+- 의료 기록: 환자 ID·주호소·진단명·처방·경과·의학 약어.
 
 [구조 활용 — director 필드를 해당 문서 본문으로]
-- SCP 예: "항목 번호: SCP-2026-CSR / 객체 등급: Euclid / 특수 격리 절차: 대상 'Rin'과 동일 공간에 격리하며, '옆자리' 점유 시도 시 ██████ 조치한다. / 설명: 신장 약 196cm 남성형 개체. 인접 인원 점유 성향. ─ 비고: 적대성 없음. [데이터 말소]."
+- SCP 예: "항목 번호: SCP-2026-CSR / 객체 등급: Euclid / 특수 격리 절차: 본 개체는 대상 'Rin'과 동일 공간에 격리하며, '옆자리' 점유 시도 시 ██████ 조치한다. / 설명: 신장 약 196cm의 남성형 개체로, 인접 인원에 대한 점유 성향을 보인다. [데이터 말소]."
+- 정보기관 예: "FILE NO. ██-2026-0430 / 기밀 등급: 1급 / 대상: CAESAR / 감시 기록: 0830시, 대상 주방서 식사. 0835시, 대상이 'Rin'의 좌석을 강제 견인. 접촉 의도 다분. 추가 사찰 요망. 관련 발언 [REDACTED]."
 
 [예시 — 톤 참고용]
-- inner: "[심리 분석] 개체는 행위를 '배려'로 규정하나, 관측된 실제 동기는 점유욕으로 분류됨."
-- interview: "면담 기록 / 요원: 왜 손을 안 떼십니까? / 대상: ...무거워서. / (동석 Rin: 거짓말입니다.) / 요원: 기록합니다."`,
+- inner: "[심리 분석 보고서] 개체는 자신의 행위를 '배려'로 규정하나, 관측 결과 실제 동기는 점유욕으로 분류됨."
+- interview: "면담 기록 / 요원: 왜 손을 떼지 않습니까? / 대상: ...무거워서. / (동석한 Rin: 거짓말입니다.) / 요원: 기록합니다."`,
     };
 
     const contextNote = settings.context === 'current'
@@ -471,9 +438,13 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
     const subPool = MODE_SUBSTYLES[settings.mode] || [];
     const subIdx = subPool.length ? Math.floor(Math.random() * subPool.length) : -1;
     const subStyle = subIdx >= 0 ? subPool[subIdx] : '';
-    const subStyleNote = subStyle
+    let subStyleNote = subStyle
         ? `\n\n[이번 해설의 세부 스타일 — 이 변주를 적용하세요]\n${subStyle}\n(위 모드의 큰 틀은 유지하되, 이 세부 스타일의 톤·어휘·연출로 변주하세요.)`
         : '';
+    // 다큐 모드 — 야생 다큐가 아닌 서브스타일이면 '개체/수컷/암컷' 주어 사용 금지를 강하게 재명시
+    if (settings.mode === 'docu' && subStyle && !/야생/.test(subStyle)) {
+        subStyleNote += `\n\n[★주어 규칙 — 반드시 준수] 이번 서브스타일은 '야생 다큐'가 아닙니다. 인물을 '개체', '수컷', '암컷', '서식지', '포식자' 등 동물 용어로 부르지 마세요. 사람은 이름이나 '그/그녀', '○○ 씨', '환자', '아버지' 등 사람 호칭으로만 지칭하세요. 동물행동학 어휘는 절대 쓰지 마세요.`;
+    }
     // 라벨: 해당 서브스타일의 라벨 풀에서 랜덤. 풀 없으면 서브스타일 이름에서 추출 (폴백)
     let subLabel = '';
     const labelPool = SUBLABELS[settings.mode]?.[subIdx];
@@ -562,7 +533,7 @@ ${chatHistory}
         context: settings.context,
         promptLen: fullPrompt.length,
         promptHead: fullPrompt.slice(0, 200),
-        raw: null, error: null,
+        raw: null, error: null, route: null,
     };
 
     let raw;
@@ -572,29 +543,41 @@ ${chatHistory}
     const profileName = settings.profile;
     const cmrs = getContext().ConnectionManagerRequestService;
     const profiles = getConnectionProfiles();
-    const targetProfile = profileName
-        ? profiles.find(p => p.name === profileName || p.id === profileName)
-        : null;
+    let targetProfileId = null;
+    if (profileName) {
+        // 사용자가 Hot Mic 전용 프로필을 명시한 경우
+        const tp = profiles.find(p => p.name === profileName || p.id === profileName);
+        targetProfileId = tp?.id || null;
+    } else {
+        // 미지정이면 '현재 활성 프로필'로 격리 호출 → 전송버튼/메인 흐름 안 건드림
+        targetProfileId = getActiveProfileId();
+    }
 
     // 분량 → 응답 토큰 상한
     const maxTokens = { short: 400, normal: 1000, long: 3000, max: 6000 }[settings.length] || 1000;
 
-    if (targetProfile && cmrs && typeof cmrs.sendRequest === 'function') {
+    if (targetProfileId && cmrs && typeof cmrs.sendRequest === 'function') {
         try {
             const result = await cmrs.sendRequest(
-                targetProfile.id,
+                targetProfileId,
                 [{ role: 'user', content: fullPrompt }],
                 maxTokens,
             );
             // 반환 형태가 버전별로 다름: 문자열 또는 {content}
             raw = typeof result === 'string' ? result : (result?.content || result?.text || '');
+            if (HOTMIC_LAST) HOTMIC_LAST.route = '격리(' + (profileName || '활성:' + targetProfileId) + ')';
         } catch (e) {
             console.warn('[Hot Mic] 프로필 격리 호출 실패, 기본 연결로 폴백:', e);
+            if (HOTMIC_LAST) HOTMIC_LAST.error = '격리호출 실패→폴백: ' + (e?.message || e);
         }
+    } else if (HOTMIC_LAST) {
+        HOTMIC_LAST.route = '격리 불가(프로필 미설정 또는 CMRS 없음)→폴백';
     }
 
     // 폴백: generateQuietPrompt (현재 연결 사용)
+    // ※ 이 경로는 메인 연결을 타서 전송버튼이 잠깐 활성화될 수 있음. 격리 호출이 안 될 때만 사용.
     if (!raw) {
+        if (HOTMIC_LAST && !HOTMIC_LAST.route) HOTMIC_LAST.route = '폴백(generateQuietPrompt, 메인 연결)';
         const genQuiet = getContext().generateQuietPrompt;
         if (typeof genQuiet !== 'function') {
             throw new Error('generateQuietPrompt를 찾을 수 없습니다. ST 버전을 확인하세요.');
@@ -701,8 +684,6 @@ function collectData() {
 function renderCommentary(data) {
     const body = document.querySelector('#observer-panel .obs-panel-body');
     if (!body) return;
-    if (archiveOpen) return; // 보관함 보는 중엔 라이브 코멘터리로 덮어쓰지 않음 (currentCommentary는 갱신됨)
-    body.classList.remove('hma-active');
 
     if (!data) {
         body.innerHTML = '<div class="obs-empty">🎤 녹음 중...</div>';
@@ -721,7 +702,11 @@ function renderCommentary(data) {
     }
 
     if (data.director) {
-        const dirLabel = DIR_LABELS[getSettings().mode] || '[ 제작진 ]';
+        const dirLabel = {
+            docu: '[ 관찰 ]', sports: '[ 중계 ]', variety: '[ 제작진 ]',
+            court: '[ 사건 파일 ]', guide: '[ 이벤트 ]', wiki: '[ 개요 ]', news: '[ 속보 ]',
+            bible: '[ 경전 ]', community: '[ 반응 ]', scp: '[ 기밀 ]',
+        }[getSettings().mode] || '[ 제작진 ]';
         blocks.push(`
             <div class="obs-block type-director">
                 <div class="obs-block-label">${dirLabel}</div>
@@ -1027,8 +1012,6 @@ function injectUI() {
                     <option value="dark"      ${settings.theme === 'dark'      ? 'selected' : ''}>⚫</option>
                 </select>
                 <button class="obs-btn-small obs-regen" title="재생성">↺</button>
-                <button class="obs-btn-small obs-bookmark" title="특전 수록 (이 코멘터리 저장)">★</button>
-                <button class="obs-btn-small obs-archive" title="특전 수록함 열기">💿</button>
                 <button class="obs-btn-small obs-fullscreen" title="전체 펼치기">⛶</button>
                 <button class="obs-btn-small obs-collapse" title="접기">▼</button>
                 <button class="obs-btn-small obs-minimize" title="최소화">✕</button>
@@ -1127,6 +1110,22 @@ function bindEvents() {
     const bar = document.getElementById('observer-bar');
     if (!bar) return;
 
+    // 화면 크기 변화·포커스 복귀 시 위치 재보정 (ST 모달/북마크 팝업이 떴다 닫히면
+    // 패널이 화면 밖으로 밀릴 수 있어, 펼친 상태면 제자리로 복구한다)
+    if (!window.__hotmicWinBound) {
+        window.__hotmicWinBound = true;
+        const recover = () => {
+            if (getSettings().state === 'panel') {
+                enforcePosition();
+                requestAnimationFrame(enforcePosition);
+            }
+        };
+        window.addEventListener('resize', recover);
+        window.addEventListener('orientationchange', recover);
+        window.addEventListener('focus', recover);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) recover(); });
+    }
+
     // 아이콘: 탭 → 열기, 드래그 → 위치 이동
     const iconBtn = bar.querySelector('#observer-icon-btn');
     if (iconBtn) {
@@ -1213,15 +1212,6 @@ function bindEvents() {
     // 재생성
     bar.querySelectorAll('.obs-regen').forEach(btn =>
         btn.addEventListener('click', (e) => { e.stopPropagation(); runGeneration(); })
-    );
-
-    // 특전 수록 (현재 코멘터리 저장)
-    bar.querySelectorAll('.obs-bookmark').forEach(btn =>
-        btn.addEventListener('click', (e) => { e.stopPropagation(); saveBookmark(btn); })
-    );
-    // 특전 수록함 열기/닫기 (패널 페이지 전환)
-    bar.querySelectorAll('.obs-archive').forEach(btn =>
-        btn.addEventListener('click', (e) => { e.stopPropagation(); toggleArchive(); })
     );
 
     // 전체 펼치기 토글
@@ -1518,8 +1508,7 @@ function applyTheme() {
         panel.style.setProperty('opacity', '1', 'important');
         panel.querySelectorAll('.obs-panel-header, .obs-panel-body').forEach(el => {
             el.style.setProperty('background', panelHex, 'important');
-            // 보관함(hma-active)일 땐 본문을 불투명하게 — 스티키 제목 뒤로 내용 비침 방지
-            el.style.setProperty('opacity', el.classList.contains('hma-active') ? 1 : a, 'important');
+            el.style.setProperty('opacity', a, 'important');
         });
         const track = panel.querySelector('.obs-opacity-track');
         if (track) {
@@ -1670,186 +1659,8 @@ function clearCommentary() {
     currentCommentary = null;
     stopAutoScroll();
     const body = document.querySelector('.obs-panel-body');
-    if (body && !archiveOpen) body.innerHTML = '<div class="obs-empty">🎤 녹음 대기 중...</div>';
+    if (body) body.innerHTML = '<div class="obs-empty">🎤 녹음 대기 중...</div>';
     updateTickerPreview('녹음 대기 중...');
-}
-
-// ─── 특전 수록 (북마크) ───
-// 코멘터리를 전역 보관함(extension_settings.bookmarks)에 저장. 채팅에 쓰지 않음(읽기 전용 유지).
-function bookmarkText(b) {
-    const parts = [];
-    if (b.data.inner)     parts.push('[속마음] ' + b.data.inner);
-    if (b.data.director)  parts.push((DIR_LABELS[b.mode] || '[해설]') + ' ' + b.data.director);
-    if (b.data.fact)      parts.push('[팩트체크] ' + b.data.fact);
-    if (b.data.interview) parts.push('[마이크에 잡힘] ' + b.data.interview);
-    return parts.join('\n\n');
-}
-
-function saveBookmark(btn) {
-    const c = currentCommentary;
-    if (!c || (!c.inner && !c.director && !c.fact && !c.interview)) {
-        flashBtn(btn);
-        toast('저장할 코멘터리가 없어');
-        return;
-    }
-    const s = getSettings();
-    const data = {
-        inner: c.inner || null, director: c.director || null,
-        fact: c.fact || null, interview: c.interview || null, preview: c.preview || null,
-    };
-    const sig = JSON.stringify(data);
-    // 직전 항목과 동일 내용이면 중복 저장 방지
-    if (s.bookmarks[0] && JSON.stringify(s.bookmarks[0].data) === sig) {
-        flashBtn(btn);
-        toast('이미 수록됨');
-        return;
-    }
-    const now = new Date();
-    const mode = s.mode;
-    s.bookmarks.unshift({
-        id: 'bm_' + now.getTime() + '_' + Math.random().toString(36).slice(2, 6),
-        ts: now.getTime(),
-        time: `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-        mode,
-        modeLabel: MODE_LABELS[mode] || mode,
-        subLabel: c._subLabel || '',
-        data,
-    });
-    if (s.bookmarks.length > 100) s.bookmarks.length = 100; // 상한
-    saveSettingsDebounced();
-    flashBtn(btn);
-    toast('★ 특전 수록 완료');
-    if (archiveOpen) renderArchive();
-}
-
-function deleteBookmark(id) {
-    const s = getSettings();
-    s.bookmarks = s.bookmarks.filter(b => b.id !== id);
-    saveSettingsDebounced();
-    if (archiveOpen) renderArchive();
-}
-
-function clearBookmarks() {
-    const s = getSettings();
-    if (!s.bookmarks.length) return;
-    if (!window.confirm(`특전 수록함을 전부 비울까? (${s.bookmarks.length}개)`)) return;
-    s.bookmarks = [];
-    saveSettingsDebounced();
-    if (archiveOpen) renderArchive();
-}
-
-function copyBookmark(id) {
-    const s = getSettings();
-    const b = s.bookmarks.find(x => x.id === id);
-    if (!b) return;
-    const txt = `${b.modeLabel}${b.subLabel ? ' · ' + b.subLabel : ''} (${b.time})\n\n` + bookmarkText(b);
-    navigator.clipboard?.writeText(txt).then(() => toast('복사됨'), () => toast('복사 실패'));
-}
-
-function openArchive() {
-    archiveOpen = true;
-    if (getSettings().state !== 'panel') setState('panel');
-    renderArchive();
-}
-
-function closeArchive() {
-    archiveOpen = false;
-    renderCommentary(currentCommentary);
-}
-
-function toggleArchive() {
-    if (archiveOpen) closeArchive(); else openArchive();
-}
-
-// 보관함을 패널 본문(.obs-panel-body)에 렌더 (오버레이 X — 모바일 위치 버그 회피)
-function renderArchive() {
-    const body = document.querySelector('#observer-panel .obs-panel-body');
-    if (!body) return;
-    const s = getSettings();
-    const cards = s.bookmarks.length
-        ? s.bookmarks.map(b => {
-            const blk = [];
-            const dl = (DIR_LABELS[b.mode] || '[ 해설 ]').replace(/[\[\] ]/g, '');
-            if (b.data.inner)     blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">속마음</span>${escHtml(b.data.inner)}</div>`);
-            if (b.data.director)  blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">${escHtml(dl)}</span>${escHtml(b.data.director)}</div>`);
-            if (b.data.fact)      blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">팩트체크</span>${escHtml(b.data.fact)}</div>`);
-            if (b.data.interview) blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">마이크에 잡힘</span>${escHtml(b.data.interview)}</div>`);
-            const previewSrc = b.data.preview || b.data.director || b.data.inner || b.data.fact || b.data.interview || '(내용 없음)';
-            return `
-            <div class="hma-card" data-id="${b.id}">
-                <div class="hma-card-top">
-                    <span class="hma-badge">${escHtml(b.modeLabel)}${b.subLabel ? ' · ' + escHtml(b.subLabel) : ''}</span>
-                    <span class="hma-time">${escHtml(b.time)}</span>
-                    <span class="hma-card-btns">
-                        <button class="hma-toggle" title="펼치기">열기 ▾</button>
-                        <button class="hma-copy" data-id="${b.id}" title="복사">⧉</button>
-                        <button class="hma-del" data-id="${b.id}" title="삭제">🗑</button>
-                    </span>
-                </div>
-                <div class="hma-preview">${escHtml(previewSrc)}</div>
-                <div class="hma-card-body">${blk.join('')}</div>
-            </div>`;
-        }).join('')
-        : `<div class="hma-empty">아직 수록된 명장면이 없어.<br>코멘터리 뜬 상태에서 ★ 눌러 저장해봐.</div>`;
-
-    body.innerHTML = `
-        <div class="hma-head">
-            <button class="hma-back" title="코멘터리로 돌아가기">← 코멘터리</button>
-            <span class="hma-title">💿 특전 수록함 (${s.bookmarks.length})</span>
-            <button class="hma-clear" title="전체 삭제">전체 삭제</button>
-        </div>
-        <div class="hma-list">${cards}</div>`;
-
-    body.querySelector('.hma-back')?.addEventListener('click', closeArchive);
-    body.querySelector('.hma-clear')?.addEventListener('click', clearBookmarks);
-    body.querySelectorAll('.hma-toggle').forEach(btn => btn.addEventListener('click', () => {
-        const card = btn.closest('.hma-card');
-        const open = card.classList.toggle('expanded');
-        btn.textContent = open ? '접기 ▴' : '열기 ▾';
-        btn.title = open ? '접기' : '펼치기';
-    }));
-    body.querySelectorAll('.hma-del').forEach(btn => btn.addEventListener('click', () => deleteBookmark(btn.dataset.id)));
-    body.querySelectorAll('.hma-copy').forEach(btn => btn.addEventListener('click', () => copyBookmark(btn.dataset.id)));
-    body.classList.add('hma-active');
-    applyTheme();
-    // 최초 진입 시 패널 펼침 트랜지션(~0.3s) 전에 스크롤이 어긋나는 현상 방지 — 여러 단계로 최상단 고정
-    const pinTop = () => { body.scrollTop = 0; };
-    pinTop();
-    requestAnimationFrame(() => { pinTop(); requestAnimationFrame(pinTop); });
-    setTimeout(pinTop, 60);
-    setTimeout(pinTop, 200);
-    setTimeout(pinTop, 360);
-}
-
-// 작은 토스트 알림
-function toast(msg) {
-    let t = document.getElementById('hotmic-toast');
-    if (!t) { t = document.createElement('div'); t.id = 'hotmic-toast'; document.body.appendChild(t); }
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove('show'), 1400);
-}
-
-// 버튼 잠깐 깜빡 피드백 (글자는 안 건드림 — 글리프 꼬임 방지)
-function flashBtn(btn) {
-    if (!btn) return;
-    btn.classList.add('obs-btn-flash');
-    setTimeout(() => btn.classList.remove('obs-btn-flash'), 450);
-}
-
-// 현재 테마 색 (오버레이용)
-function getThemeColors() {
-    const s = getSettings();
-    const themeKey = THEME_ALIAS[s.theme] || s.theme;
-    const t = HOTMIC_THEMES[themeKey] || HOTMIC_THEMES.light;
-    const bgRGB = t.bg.split(',').map(Number);
-    const isDark = (0.299 * bgRGB[0] + 0.587 * bgRGB[1] + 0.114 * bgRGB[2]) < 128;
-    return {
-        accent: t.accent, text: t.text, panel: t.panel, border: t.border,
-        soft: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
-        line: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)',
-    };
 }
 
 // ─── 화면 디버그 배너 (모바일은 콘솔을 못 보므로 화면에 직접 표시) ───
@@ -1936,6 +1747,7 @@ function showDebugReport() {
         hotmicDebug('--- 마지막 생성 ---');
         hotmicDebug(`시각:${HOTMIC_LAST.time} 모드:${HOTMIC_LAST.mode} 서브:${HOTMIC_LAST.subLabel || '-'}`);
         hotmicDebug(`분량:${HOTMIC_LAST.length} 맥락:${HOTMIC_LAST.context} 프롬프트:${HOTMIC_LAST.promptLen}자`);
+        if (HOTMIC_LAST.route) hotmicDebug(`경로: ${HOTMIC_LAST.route}`);
         if (HOTMIC_LAST.error) hotmicDebug(`❌ 에러: ${HOTMIC_LAST.error}`, true);
         else hotmicDebug(`응답(앞부분): ${(HOTMIC_LAST.raw || '없음').slice(0, 180)}`);
     } else {
