@@ -649,3 +649,162 @@
     margin-bottom: 8px;
     opacity: 0.85;
 }
+
+/* ─── 특전 수록 (북마크) ─── */
+.obs-btn-small.obs-btn-flash {
+    color: var(--hm-accent, #C84C4C) !important;
+    transform: scale(1.3);
+    transition: transform 0.15s;
+}
+
+/* 오버레이 */
+#hotmic-archive {
+    position: fixed;
+    inset: 0;
+    z-index: 10110;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+#hotmic-archive .hma-box {
+    width: 100%;
+    max-width: 560px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--hm-panel, #232323);
+    color: var(--hm-text, #EAEAEA);
+    border: 1px solid var(--hm-border, #383838);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+#hotmic-archive .hma-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--hm-line, rgba(255,255,255,0.18));
+    flex: 0 0 auto;
+}
+#hotmic-archive .hma-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--hm-accent, #C84C4C);
+    letter-spacing: 0.3px;
+}
+#hotmic-archive .hma-head-btns { display: flex; align-items: center; gap: 8px; }
+#hotmic-archive .hma-clear {
+    background: none;
+    border: 1px solid var(--hm-line, rgba(255,255,255,0.18));
+    color: var(--hm-text, #EAEAEA);
+    opacity: 0.75;
+    font-size: 11px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#hotmic-archive .hma-clear:hover { opacity: 1; border-color: var(--hm-accent, #C84C4C); color: var(--hm-accent, #C84C4C); }
+#hotmic-archive .hma-close {
+    background: none;
+    border: none;
+    color: var(--hm-text, #EAEAEA);
+    opacity: 0.6;
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 4px;
+}
+#hotmic-archive .hma-close:hover { opacity: 1; }
+
+#hotmic-archive .hma-list {
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+#hotmic-archive .hma-empty {
+    text-align: center;
+    opacity: 0.55;
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 40px 12px;
+}
+#hotmic-archive .hma-card {
+    background: var(--hm-soft, rgba(255,255,255,0.07));
+    border: 1px solid var(--hm-line, rgba(255,255,255,0.15));
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+#hotmic-archive .hma-card-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+#hotmic-archive .hma-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--hm-accent, #C84C4C);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+#hotmic-archive .hma-time { font-size: 10px; opacity: 0.5; flex: 0 0 auto; }
+#hotmic-archive .hma-card-btns { display: flex; gap: 4px; flex: 0 0 auto; }
+#hotmic-archive .hma-copy,
+#hotmic-archive .hma-del {
+    background: none;
+    border: none;
+    color: var(--hm-text, #EAEAEA);
+    opacity: 0.55;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 5px;
+    line-height: 1;
+}
+#hotmic-archive .hma-copy:hover { opacity: 1; background: var(--hm-line, rgba(255,255,255,0.15)); }
+#hotmic-archive .hma-del:hover { opacity: 1; background: rgba(200,76,76,0.25); }
+
+#hotmic-archive .hma-card-body { display: flex; flex-direction: column; gap: 6px; }
+#hotmic-archive .hma-blk {
+    font-size: 12.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+#hotmic-archive .hma-blk-lbl {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--hm-accent, #C84C4C);
+    opacity: 0.85;
+    margin-right: 6px;
+    vertical-align: 1px;
+}
+
+/* 토스트 */
+#hotmic-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 64px;
+    transform: translateX(-50%) translateY(12px);
+    z-index: 10120;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    font-size: 13px;
+    padding: 9px 16px;
+    border-radius: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+}
+#hotmic-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
