@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.28.2 ───
+// ─── 🎤 Hot Mic v2.28.3 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.28.2';
+const HOTMIC_VERSION = '2.28.3';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -80,6 +80,7 @@ function getConnectionProfiles() {
 
 // ─── 상태 ───
 let currentCommentary = null;   // 현재 해설 데이터
+let archiveOpen = false;        // 특전 수록함(보관함) 페이지를 패널에 띄운 상태
 let isGenerating = false;
 
 // ─── 모드별 서브스타일 풀 (매번 랜덤으로 하나 골라 변주) ───
@@ -700,6 +701,7 @@ function collectData() {
 function renderCommentary(data) {
     const body = document.querySelector('#observer-panel .obs-panel-body');
     if (!body) return;
+    if (archiveOpen) return; // 보관함 보는 중엔 라이브 코멘터리로 덮어쓰지 않음 (currentCommentary는 갱신됨)
 
     if (!data) {
         body.innerHTML = '<div class="obs-empty">🎤 녹음 중...</div>';
@@ -1216,9 +1218,9 @@ function bindEvents() {
     bar.querySelectorAll('.obs-bookmark').forEach(btn =>
         btn.addEventListener('click', (e) => { e.stopPropagation(); saveBookmark(btn); })
     );
-    // 특전 수록함 열기
+    // 특전 수록함 열기/닫기 (패널 페이지 전환)
     bar.querySelectorAll('.obs-archive').forEach(btn =>
-        btn.addEventListener('click', (e) => { e.stopPropagation(); openArchive(); })
+        btn.addEventListener('click', (e) => { e.stopPropagation(); toggleArchive(); })
     );
 
     // 전체 펼치기 토글
@@ -1666,7 +1668,7 @@ function clearCommentary() {
     currentCommentary = null;
     stopAutoScroll();
     const body = document.querySelector('.obs-panel-body');
-    if (body) body.innerHTML = '<div class="obs-empty">🎤 녹음 대기 중...</div>';
+    if (body && !archiveOpen) body.innerHTML = '<div class="obs-empty">🎤 녹음 대기 중...</div>';
     updateTickerPreview('녹음 대기 중...');
 }
 
@@ -1715,14 +1717,14 @@ function saveBookmark(btn) {
     saveSettingsDebounced();
     flashBtn(btn, '✓');
     toast('⭐ 특전 수록 완료');
-    if (document.getElementById('hotmic-archive')) renderArchiveList();
+    if (archiveOpen) renderArchive();
 }
 
 function deleteBookmark(id) {
     const s = getSettings();
     s.bookmarks = s.bookmarks.filter(b => b.id !== id);
     saveSettingsDebounced();
-    renderArchiveList();
+    if (archiveOpen) renderArchive();
 }
 
 function clearBookmarks() {
@@ -1731,7 +1733,7 @@ function clearBookmarks() {
     if (!window.confirm(`특전 수록함을 전부 비울까? (${s.bookmarks.length}개)`)) return;
     s.bookmarks = [];
     saveSettingsDebounced();
-    renderArchiveList();
+    if (archiveOpen) renderArchive();
 }
 
 function copyBookmark(id) {
@@ -1743,81 +1745,71 @@ function copyBookmark(id) {
 }
 
 function openArchive() {
-    if (document.getElementById('hotmic-archive')) { renderArchiveList(); return; }
-    const ov = document.createElement('div');
-    ov.id = 'hotmic-archive';
-    const c = getThemeColors();
-    ov.style.setProperty('--hm-accent', c.accent);
-    ov.style.setProperty('--hm-text', c.text);
-    ov.style.setProperty('--hm-panel', c.panel);
-    ov.style.setProperty('--hm-border', c.border);
-    ov.style.setProperty('--hm-soft', c.soft);
-    ov.style.setProperty('--hm-line', c.line);
-    ov.innerHTML = `
-        <div class="hma-box">
-            <div class="hma-head">
-                <span class="hma-title">💿 특전 수록함</span>
-                <div class="hma-head-btns">
-                    <button class="hma-clear" title="전체 삭제">전체 삭제</button>
-                    <button class="hma-close" title="닫기">✕</button>
-                </div>
-            </div>
-            <div class="hma-list"></div>
-        </div>`;
-    document.body.appendChild(ov);
-    ov.addEventListener('click', (e) => { if (e.target === ov) closeArchive(); });
-    ov.querySelector('.hma-close').addEventListener('click', closeArchive);
-    ov.querySelector('.hma-clear').addEventListener('click', clearBookmarks);
-    renderArchiveList();
+    archiveOpen = true;
+    if (getSettings().state !== 'panel') setState('panel');
+    renderArchive();
 }
 
 function closeArchive() {
-    document.getElementById('hotmic-archive')?.remove();
+    archiveOpen = false;
+    renderCommentary(currentCommentary);
 }
 
-function renderArchiveList() {
-    const ov = document.getElementById('hotmic-archive');
-    if (!ov) return;
+function toggleArchive() {
+    if (archiveOpen) closeArchive(); else openArchive();
+}
+
+// 보관함을 패널 본문(.obs-panel-body)에 렌더 (오버레이 X — 모바일 위치 버그 회피)
+function renderArchive() {
+    const body = document.querySelector('#observer-panel .obs-panel-body');
+    if (!body) return;
     const s = getSettings();
-    const list = ov.querySelector('.hma-list');
-    const title = ov.querySelector('.hma-title');
-    if (title) title.textContent = `💿 특전 수록함 (${s.bookmarks.length})`;
-    if (!s.bookmarks.length) {
-        list.innerHTML = `<div class="hma-empty">아직 수록된 명장면이 없어.<br>패널에서 ⭐ 눌러 저장해봐.</div>`;
-        return;
-    }
-    list.innerHTML = s.bookmarks.map(b => {
-        const blk = [];
-        const dl = (DIR_LABELS[b.mode] || '[ 해설 ]').replace(/[\[\] ]/g, '');
-        if (b.data.inner)     blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">속마음</span>${escHtml(b.data.inner)}</div>`);
-        if (b.data.director)  blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">${escHtml(dl)}</span>${escHtml(b.data.director)}</div>`);
-        if (b.data.fact)      blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">팩트체크</span>${escHtml(b.data.fact)}</div>`);
-        if (b.data.interview) blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">마이크에 잡힘</span>${escHtml(b.data.interview)}</div>`);
-        // 접힌 상태 프리뷰 (ticker와 동일한 preview 우선, 없으면 첫 본문 일부)
-        const previewSrc = b.data.preview || b.data.director || b.data.inner || b.data.fact || b.data.interview || '(내용 없음)';
-        return `
-        <div class="hma-card" data-id="${b.id}">
-            <div class="hma-card-top">
-                <span class="hma-badge">${escHtml(b.modeLabel)}${b.subLabel ? ' · ' + escHtml(b.subLabel) : ''}</span>
-                <span class="hma-time">${escHtml(b.time)}</span>
-                <span class="hma-card-btns">
-                    <button class="hma-toggle" data-id="${b.id}" title="펼치기">열기 ▾</button>
-                    <button class="hma-copy" data-id="${b.id}" title="복사">⧉</button>
-                    <button class="hma-del" data-id="${b.id}" title="삭제">🗑</button>
-                </span>
-            </div>
-            <div class="hma-preview">${escHtml(previewSrc)}</div>
-            <div class="hma-card-body">${blk.join('')}</div>
-        </div>`;
-    }).join('');
-    list.querySelectorAll('.hma-toggle').forEach(btn => btn.addEventListener('click', () => {
+    const cards = s.bookmarks.length
+        ? s.bookmarks.map(b => {
+            const blk = [];
+            const dl = (DIR_LABELS[b.mode] || '[ 해설 ]').replace(/[\[\] ]/g, '');
+            if (b.data.inner)     blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">속마음</span>${escHtml(b.data.inner)}</div>`);
+            if (b.data.director)  blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">${escHtml(dl)}</span>${escHtml(b.data.director)}</div>`);
+            if (b.data.fact)      blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">팩트체크</span>${escHtml(b.data.fact)}</div>`);
+            if (b.data.interview) blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">마이크에 잡힘</span>${escHtml(b.data.interview)}</div>`);
+            const previewSrc = b.data.preview || b.data.director || b.data.inner || b.data.fact || b.data.interview || '(내용 없음)';
+            return `
+            <div class="hma-card" data-id="${b.id}">
+                <div class="hma-card-top">
+                    <span class="hma-badge">${escHtml(b.modeLabel)}${b.subLabel ? ' · ' + escHtml(b.subLabel) : ''}</span>
+                    <span class="hma-time">${escHtml(b.time)}</span>
+                    <span class="hma-card-btns">
+                        <button class="hma-toggle" title="펼치기">열기 ▾</button>
+                        <button class="hma-copy" data-id="${b.id}" title="복사">⧉</button>
+                        <button class="hma-del" data-id="${b.id}" title="삭제">🗑</button>
+                    </span>
+                </div>
+                <div class="hma-preview">${escHtml(previewSrc)}</div>
+                <div class="hma-card-body">${blk.join('')}</div>
+            </div>`;
+        }).join('')
+        : `<div class="hma-empty">아직 수록된 명장면이 없어.<br>코멘터리 뜬 상태에서 ⭐ 눌러 저장해봐.</div>`;
+
+    body.innerHTML = `
+        <div class="hma-head">
+            <button class="hma-back" title="코멘터리로 돌아가기">← 코멘터리</button>
+            <span class="hma-title">💿 특전 수록함 (${s.bookmarks.length})</span>
+            <button class="hma-clear" title="전체 삭제">전체 삭제</button>
+        </div>
+        <div class="hma-list">${cards}</div>`;
+
+    body.querySelector('.hma-back')?.addEventListener('click', closeArchive);
+    body.querySelector('.hma-clear')?.addEventListener('click', clearBookmarks);
+    body.querySelectorAll('.hma-toggle').forEach(btn => btn.addEventListener('click', () => {
         const card = btn.closest('.hma-card');
         const open = card.classList.toggle('expanded');
         btn.textContent = open ? '접기 ▴' : '열기 ▾';
         btn.title = open ? '접기' : '펼치기';
     }));
-    list.querySelectorAll('.hma-del').forEach(btn => btn.addEventListener('click', () => deleteBookmark(btn.dataset.id)));
-    list.querySelectorAll('.hma-copy').forEach(btn => btn.addEventListener('click', () => copyBookmark(btn.dataset.id)));
+    body.querySelectorAll('.hma-del').forEach(btn => btn.addEventListener('click', () => deleteBookmark(btn.dataset.id)));
+    body.querySelectorAll('.hma-copy').forEach(btn => btn.addEventListener('click', () => copyBookmark(btn.dataset.id)));
+    body.scrollTop = 0;
+    applyTheme();
 }
 
 // 작은 토스트 알림
