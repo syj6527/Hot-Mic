@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.28.6 ───
+// ─── 🎤 Hot Mic v2.29.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.28.6';
+const HOTMIC_VERSION = '2.29.0';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -114,6 +114,7 @@ function safeKeys(o) {
 let currentCommentary = null;   // 현재 해설 데이터
 let archiveOpen = false;        // 특전 수록함(보관함) 페이지를 패널에 띄운 상태
 let isGenerating = false;
+let genController = null;        // 진행 중 생성 취소용 (탭 중단 / 채팅 전환 시 abort)
 
 // ─── 모드별 서브스타일 풀 (매번 랜덤으로 하나 골라 변주) ───
 const MODE_SUBSTYLES = {
@@ -236,7 +237,7 @@ const SUBLABELS = {
 };
 
 // ─── API 호출 ───
-async function generateCommentary(charData, chatHistory, lastMessage) {
+async function generateCommentary(charData, chatHistory, lastMessage, signal) {
     const settings = getSettings();
 
     const modePrompts = {
@@ -621,6 +622,7 @@ ${chatHistory}
                 targetProfile.id,
                 [{ role: 'user', content: fullPrompt }],
                 maxTokens,
+                { signal },
             );
             raw = extractCmrsText(result);
             if (raw) {
@@ -629,6 +631,7 @@ ${chatHistory}
                 hotmicDebug('⚠️ 격리 호출은 됐으나 응답 파싱 실패. result 키=[' + safeKeys(result) + ']', true);
             }
         } catch (e) {
+            if (signal?.aborted || e?.name === 'AbortError') throw e;  // 중단이면 폴백하지 않고 종료
             hotmicDebug('⚠️ 프로필 격리 호출 예외: ' + (e?.message || e), true);
         }
     } else if (profileSet) {
@@ -636,6 +639,9 @@ ${chatHistory}
         if (!cmrs) hotmicDebug('⚠️ ConnectionManagerRequestService를 찾을 수 없음 (ST 버전 문제 가능) → 메인 연결로 폴백', true);
         else if (!targetProfile) hotmicDebug(`⚠️ '${profileName}' 프로필을 목록에서 못 찾음 → 메인 연결로 폴백`, true);
     }
+
+    // 폴백 직전 중단됐으면 메인 연결 생성을 시작하지 않는다
+    if (signal?.aborted) { const e = new Error('aborted'); e.name = 'AbortError'; throw e; }
 
     // 폴백: generateQuietPrompt (현재 메인 연결 사용 = ST 전송버튼 활성화 + 메인 API/Pro 소모)
     if (!raw) {
@@ -754,7 +760,7 @@ function renderCommentary(data) {
     body.classList.remove('hma-active');
 
     if (!data) {
-        body.innerHTML = '<div class="obs-empty">🎤 녹음 중...</div>';
+        body.innerHTML = '<div class="obs-empty obs-rec-live">🎤 녹음 중... <span style="opacity:.55;font-size:.85em">(탭하면 중단)</span></div>';
         return;
     }
 
@@ -923,10 +929,38 @@ function updateTickerPreview(preview) {
 
 function setRegenLoading(loading) {
     const btns = document.querySelectorAll('.obs-regen');
+    let textColor = '';
+    if (!loading) {
+        try {
+            const s = getSettings();
+            const t = HOTMIC_THEMES[THEME_ALIAS[s.theme] || s.theme] || HOTMIC_THEMES.light;
+            textColor = t.text;
+        } catch (e) {}
+    }
     btns.forEach(btn => {
-        btn.classList.toggle('loading', loading);
-        btn.style.pointerEvents = loading ? 'none' : '';
+        btn.classList.remove('loading');          // 스핀 대신 ⏹ 정적 표시
+        btn.textContent = loading ? '⏹' : '↺';
+        btn.title = loading ? '녹음 중단 (탭)' : '재생성';
+        btn.style.pointerEvents = '';             // 중단하려면 항상 클릭 가능해야 함
+        btn.style.setProperty('color', loading ? '#e2554d' : (textColor || ''), (loading || textColor) ? 'important' : '');
     });
+}
+
+// 진행 중인 녹음(해설 생성)을 즉시 중단한다. isGenerating을 바로 풀어 새 채팅/재생성이 안 막히게.
+function stopRecording(opts = {}) {
+    if (!isGenerating) return false;
+    try { genController?.abort(); } catch (e) {}
+    try { getContext().stopGeneration?.(); } catch (e) {}  // 폴백(메인 연결) 생성도 중단 시도
+    isGenerating = false;
+    setRegenLoading(false);
+    if (!opts.silent) {
+        toast('⏹ 녹음 중단');
+        updateTickerPreview('⏹ 중단됨 — ↺ 탭하면 재생성');
+        const body = document.querySelector('#observer-panel .obs-panel-body');
+        if (body && !archiveOpen) body.innerHTML = '<div class="obs-empty">🎤 녹음 대기 중 (↺ 탭하면 재생성)</div>';
+    }
+    hotmicDebug('⏹ 녹음 중단됨' + (opts.silent ? ' (채팅 전환)' : ' (수동 탭)'));
+    return true;
 }
 
 function escHtml(str) {
@@ -979,8 +1013,10 @@ async function runGeneration() {
     const chatKeyStart = ctxStart.chatId ?? ctxStart.getCurrentChatId?.() ?? (ctxStart.chat?.length + ':' + (ctxStart.characterId ?? ''));
 
     isGenerating = true;
+    const controller = new AbortController();
+    genController = controller;
     setRegenLoading(true);
-    updateTickerPreview('녹음 중...');
+    updateTickerPreview('녹음 중... (탭하면 중단)');
     renderCommentary(null);
 
     try {
@@ -988,7 +1024,10 @@ async function runGeneration() {
             collected.charData,
             collected.history,
             collected.lastMessage,
+            controller.signal,
         );
+        // 수동 중단(탭)됐으면 결과 폐기
+        if (controller.signal.aborted) { console.log('[Hot Mic] 녹음 중단으로 해설 폐기'); return; }
         // 생성 도중 채팅이 바뀌었으면 이 결과는 폐기 (다른 채팅에 박히는 것 방지)
         const ctxNow = getContext();
         const chatKeyNow = ctxNow.chatId ?? ctxNow.getCurrentChatId?.() ?? (ctxNow.chat?.length + ':' + (ctxNow.characterId ?? ''));
@@ -1003,12 +1042,17 @@ async function runGeneration() {
         updateTickerPreview(previewText);
         renderCommentary(commentary);
     } catch (err) {
-        console.error('[Hot Mic] 해설 생성 실패:', err);
-        if (HOTMIC_LAST) HOTMIC_LAST.error = String(err?.message || err);
-        updateTickerPreview('⚠ 생성 실패');
-        const body = document.querySelector('#observer-panel .obs-panel-body');
-        if (body) body.innerHTML = '<div class="obs-empty">⚠ 해설 생성에 실패했습니다</div>';
+        if (controller.signal.aborted || err?.name === 'AbortError') {
+            console.log('[Hot Mic] 생성 중단됨');  // 사용자가 멈춤 → 에러 표시 안 함
+        } else {
+            console.error('[Hot Mic] 해설 생성 실패:', err);
+            if (HOTMIC_LAST) HOTMIC_LAST.error = String(err?.message || err);
+            updateTickerPreview('⚠ 생성 실패');
+            const body = document.querySelector('#observer-panel .obs-panel-body');
+            if (body && !archiveOpen) body.innerHTML = '<div class="obs-empty">⚠ 해설 생성에 실패했습니다</div>';
+        }
     } finally {
+        if (genController === controller) genController = null;
         isGenerating = false;
         setRegenLoading(false);
     }
@@ -1234,6 +1278,8 @@ function bindEvents() {
     bar.querySelector('#observer-ticker')?.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
         if (e.target.closest('.obs-ticker-preview')) {
+            // 녹음 중이면 탭 = 중단
+            if (isGenerating) { stopRecording(); return; }
             // 흐름 토글
             const inner = bar.querySelector('.obs-marquee-inner');
             if (inner && inner.classList.contains('obs-marquee-run')) {
@@ -1249,6 +1295,11 @@ function bindEvents() {
         btn.addEventListener('click', (e) => { e.stopPropagation(); setState('panel'); })
     );
 
+    // 패널 본문에서 '녹음 중' 표시 탭 → 중단
+    bar.querySelector('.obs-panel-body')?.addEventListener('click', (e) => {
+        if (isGenerating && e.target.closest('.obs-rec-live')) stopRecording();
+    });
+
     // 접기
     bar.querySelectorAll('.obs-collapse').forEach(btn =>
         btn.addEventListener('click', (e) => { e.stopPropagation(); setState('ticker'); })
@@ -1259,9 +1310,13 @@ function bindEvents() {
         btn.addEventListener('click', (e) => { e.stopPropagation(); setState('icon'); })
     );
 
-    // 재생성
+    // 재생성 / 녹음 중엔 중단(⏹)
     bar.querySelectorAll('.obs-regen').forEach(btn =>
-        btn.addEventListener('click', (e) => { e.stopPropagation(); runGeneration(); })
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isGenerating) stopRecording();
+            else runGeneration();
+        })
     );
 
     // 특전 수록 (현재 코멘터리 저장)
@@ -1702,6 +1757,7 @@ function setupEventListeners() {
     // (CHAT_CHANGED는 캐릭터/채팅 전환, 새 채팅 시작 모두에서 발생)
     if (event_types.CHAT_CHANGED) {
         eventSource.on(event_types.CHAT_CHANGED, () => {
+            stopRecording({ silent: true }); // 진행 중이던 녹음 즉시 중단 → 새 채팅이 안 막힘
             clearCommentary();
             // 새 채팅에 이미 메시지가 있으면 잠시 후 해설 생성, 없으면 비운 채 대기
             setTimeout(() => {
